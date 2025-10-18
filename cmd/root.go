@@ -6,11 +6,14 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/spf13/cobra"
 )
 
-const Version = "0.0.1"
+var (
+	Version string
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -22,7 +25,12 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		version, _ := cmd.Flags().GetBool("version")
 		if version {
-			fmt.Printf("tsunami version %s\n", Version)
+			fmt.Printf("tsunami version %s\nRuntime: %s %s/%s\n",
+				Version,
+				runtime.Version(),
+				runtime.GOOS,
+				runtime.GOARCH,
+			)
 			os.Exit(0)
 		}
 
@@ -43,10 +51,6 @@ func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.tsunami.yaml)")
-
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
 	rootCmd.Flags().BoolP("version", "v", false, "Print version and exit")
 }
