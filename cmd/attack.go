@@ -15,7 +15,6 @@ var attackCmd = &cobra.Command{
 	// TODO: add desc. for attack command
 	Short: "Attack a target",
 	Long:  "Attack a target",
-	// TODO: add run function
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("attack called")
 	},
