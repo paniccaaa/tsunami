@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const Version = "1.0.0"
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use: "tsunami",
@@ -18,6 +20,13 @@ var rootCmd = &cobra.Command{
 	Long:  "Tsunami is a tool for load testing",
 	// TODO: Add a run function
 	Run: func(cmd *cobra.Command, args []string) {
+		// Check for version flag
+		version, _ := cmd.Flags().GetBool("version")
+		if version {
+			fmt.Printf("tsunami version %s\n", Version)
+			os.Exit(0)
+		}
+
 		fmt.Println("Hello, World!")
 	},
 }
@@ -38,7 +47,7 @@ func init() {
 
 	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.tsunami.yaml)")
 
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+
+	rootCmd.Flags().BoolP("version", "v", false, "Print version and exit")
 }
