@@ -33,8 +33,6 @@ var rootCmd = &cobra.Command{
 			)
 			os.Exit(0)
 		}
-
-		fmt.Println("Hello, World!")
 	},
 }
 
