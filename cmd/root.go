@@ -20,7 +20,6 @@ var rootCmd = &cobra.Command{
 	Long:  "Tsunami is a tool for load testing",
 	// TODO: Add a run function
 	Run: func(cmd *cobra.Command, args []string) {
-		// Check for version flag
 		version, _ := cmd.Flags().GetBool("version")
 		if version {
 			fmt.Printf("tsunami version %s\n", Version)
