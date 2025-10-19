@@ -5,14 +5,29 @@ package cmd
 
 import (
 	"fmt"
+	"math"
+	"time"
 
 	"github.com/spf13/cobra"
 )
 
-// attackCmd represents the attack command
+const (
+	defaultDuration        = 0
+	defaultTimeoutDuration = time.Second * 10
+	defaultRate            = "100/1s"
+	defaultWorkers         = 15
+	defaultMaxWorkers      = math.MaxUint
+	defaultConnections     = 100
+	defaultMaxConnections  = math.MaxUint
+	defaultMethod          = "GET"
+	defaultOutput          = "stdout"
+	defaultBody            = ""
+)
+
+var defaultHeaders = []string{}
+
 var attackCmd = &cobra.Command{
-	Use: "attack",
-	// TODO: add desc. for attack command
+	Use:   "attack",
 	Short: "Attack a target",
 	Long:  "Attack a target",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -23,13 +38,27 @@ var attackCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(attackCmd)
 
-	// Here you will define your flags and configuration settings.
+	attackCmd.Flags().StringP("url", "u", "", "URL to attack")
+	attackCmd.MarkFlagRequired("url")
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// attackCmd.PersistentFlags().String("foo", "", "A help for foo")
+	attackCmd.Flags().StringP("method", "m", defaultMethod, "HTTP method to use (default GET)")
+	attackCmd.Flags().StringP("body", "b", defaultBody, "HTTP body to use")
+	attackCmd.Flags().StringArrayP("headers", "h", defaultHeaders, "HTTP headers to use")
 
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// attackCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	attackCmd.Flags().StringP("rate", "r", defaultRate, "Requests per time unit (default 100/1s)")
+
+	attackCmd.Flags().StringP("output", "o", defaultOutput, "Output file (default stdout)")
+
+	var duration time.Duration
+	attackCmd.Flags().DurationVarP(&duration, "duration", "d", defaultDuration, "Duration of the attack (default 0)")
+
+	var timeoutDuration time.Duration
+	attackCmd.Flags().DurationVarP(&timeoutDuration, "timeout", "t", defaultTimeoutDuration, "Requests timeout (default 10s)")
+
+	attackCmd.Flags().UintP("workers", "w", defaultWorkers, "Number of workers to use (default 15)")
+	attackCmd.Flags().UintP("max-workers", "mw", defaultMaxWorkers, "Maximum number of workers to use (default 18446744073709551615)")
+
+	attackCmd.Flags().UintP("connections", "c", defaultConnections, "Number of connections to use (default 100)")
+	attackCmd.Flags().UintP("max-connections", "mc", defaultMaxConnections, "Maximum number of connections to use (default 18446744073709551615)")
+
 }
