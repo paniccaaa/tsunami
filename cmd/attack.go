@@ -14,14 +14,18 @@ import (
 const (
 	defaultDuration        = 0
 	defaultTimeoutDuration = time.Second * 10
-	defaultRate            = "100/1s"
-	defaultWorkers         = 15
-	defaultMaxWorkers      = math.MaxUint
-	defaultConnections     = 100
-	defaultMaxConnections  = math.MaxUint
-	defaultMethod          = "GET"
-	defaultOutput          = "stdout"
-	defaultBody            = ""
+
+	defaultRate = "100/1s"
+
+	defaultWorkers    = 15
+	defaultMaxWorkers = math.MaxUint
+
+	defaultConnections    = 100
+	defaultMaxConnections = math.MaxUint
+
+	defaultMethod = "GET"
+	defaultOutput = "stdout"
+	defaultBody   = ""
 )
 
 var defaultHeaders = []string{}
