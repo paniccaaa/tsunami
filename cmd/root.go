@@ -19,11 +19,9 @@ var (
 var rootCmd = &cobra.Command{
 	Use: "tsunami",
 	// TODO: Add a description of the command help
-	Short: "Tsunami is a tool for load testing",
-	Long:  "Tsunami is a tool for load testing",
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		validateAndSetCPUs(cmd)
-	},
+	Short:            "Tsunami is a tool for load testing",
+	Long:             "Tsunami is a tool for load testing",
+	PersistentPreRun: globalPreRun,
 	Run: func(cmd *cobra.Command, args []string) {
 		version, _ := cmd.Flags().GetBool("version")
 		if version {
@@ -53,7 +51,7 @@ func init() {
 	// will be global for your application.
 
 	// Global persistent flags
-	rootCmd.PersistentFlags().IntP("cpus", "c", runtime.NumCPU(), "Number of CPUs to use")
+	rootCmd.PersistentFlags().Int("cpus", runtime.NumCPU(), "Number of CPUs to use")
 
 	// Local root flags
 	rootCmd.Flags().BoolP("version", "v", false, "Print version and exit")
