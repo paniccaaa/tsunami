@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -20,7 +22,7 @@ const (
 
 	defaultRate = "100/1s"
 
-	defaultWorkers    = 15
+	defaultWorkers    = 50
 	defaultMaxWorkers = math.MaxUint
 
 	defaultConnections    = 100
@@ -46,7 +48,11 @@ var attackCmd = &cobra.Command{
 		client := createHTTPClient(cfg)
 		metrics := NewGlobalMetrics()
 
-		jobs := make(chan struct{}, cfg.Workers)
+		jobsBufferSize := cfg.Workers * 2
+		if jobsBufferSize < 100 {
+			jobsBufferSize = 100
+		}
+		jobs := make(chan struct{}, jobsBufferSize)
 		results := make(chan RequestResult, cfg.Workers*2)
 		var wg sync.WaitGroup
 
@@ -64,14 +70,34 @@ var attackCmd = &cobra.Command{
 		stopCh := make(chan struct{})
 		startTime := time.Now()
 
+		// Setup signal handling for graceful shutdown
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+		// Use sync.Once to ensure stopCh is closed only once
+		var stopOnce sync.Once
+		stopFunc := func() {
+			stopOnce.Do(func() {
+				close(stopCh)
+			})
+		}
+
+		// Handle duration timer
 		var attackTimer *time.Timer
 		if cfg.Duration > 0 {
 			attackTimer = time.NewTimer(cfg.Duration)
 			go func() {
 				<-attackTimer.C
-				close(stopCh)
+				stopFunc()
 			}()
 		}
+
+		// Handle OS signals (Ctrl+C, SIGTERM)
+		go func() {
+			<-sigCh
+			fmt.Println("\nReceived interrupt signal. Shutting down gracefully...")
+			stopFunc()
+		}()
 
 		go func() {
 			defer close(jobs)
@@ -82,9 +108,11 @@ var attackCmd = &cobra.Command{
 					return
 				default:
 					rateLimiter.Take()
+
 					select {
+					case <-stopCh:
+						return
 					case jobs <- struct{}{}:
-					default:
 					}
 				}
 			}
@@ -113,7 +141,6 @@ var attackCmd = &cobra.Command{
 
 		if cfg.Duration == 0 {
 			fmt.Println("Duration is 0. Attack running indefinitely (Ctrl+C to stop).")
-			select {}
 		}
 
 		<-stopCh

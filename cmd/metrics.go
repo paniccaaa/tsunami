@@ -41,6 +41,11 @@ func (m *GlobalMetrics) AddLatency(latency time.Duration) {
 		m.Latencies = append(m.Latencies, latency)
 	} else {
 		// Buffer is full, use circular buffer behavior
+		if cap(m.Latencies) < maxLatencySamples {
+			newLatencies := make([]time.Duration, maxLatencySamples)
+			copy(newLatencies, m.Latencies)
+			m.Latencies = newLatencies
+		}
 		m.Latencies[m.latencyIdx] = latency
 		m.latencyIdx = (m.latencyIdx + 1) % maxLatencySamples
 	}
