@@ -83,11 +83,9 @@ Examples:
 		stopCh := make(chan struct{})
 		startTime := time.Now()
 
-		// Setup signal handling for graceful shutdown
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-		// Use sync.Once to ensure stopCh is closed only once
 		var stopOnce sync.Once
 		stopFunc := func() {
 			stopOnce.Do(func() {
@@ -95,7 +93,6 @@ Examples:
 			})
 		}
 
-		// Handle duration timer
 		var attackTimer *time.Timer
 		if cfg.Duration > 0 {
 			attackTimer = time.NewTimer(cfg.Duration)
@@ -105,7 +102,6 @@ Examples:
 			}()
 		}
 
-		// Handle OS signals (Ctrl+C, SIGTERM)
 		go func() {
 			<-sigCh
 			fmt.Println("\nReceived interrupt signal. Shutting down gracefully...")
