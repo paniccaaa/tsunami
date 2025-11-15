@@ -120,7 +120,6 @@ func worker(
 			results <- result
 			continue
 		}
-		defer resp.Body.Close()
 
 		result.StatusCode = resp.StatusCode
 		if resp.StatusCode < 400 {
@@ -128,6 +127,7 @@ func worker(
 		}
 
 		results <- result
+		resp.Body.Close()
 	}
 }
 
