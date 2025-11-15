@@ -34,9 +34,22 @@ const (
 )
 
 var attackCmd = &cobra.Command{
-	Use:              "attack",
-	Short:            "Attack a target",
-	Long:             "Attack a target",
+	Use:   "attack",
+	Short: "Start a load test against a target URL",
+	Long: `Start a load test against a target URL with configurable rate limiting,
+workers, and duration. The command sends HTTP requests at the specified rate
+and collects detailed metrics including latency percentiles, status codes,
+and throughput.
+
+Examples:
+  # Basic attack with default settings
+  tsunami attack --url https://example.com
+
+  # Attack with custom rate and duration
+  tsunami attack --url https://example.com --rate 100/1s --duration 30s
+
+  # Attack with custom headers and save results to JSON
+  tsunami attack --url https://api.example.com --headers "Authorization: Bearer token" --output results.json`,
 	PersistentPreRun: attackPreRun,
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg, err := GetAttackConfig(cmd)
