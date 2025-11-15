@@ -104,7 +104,7 @@ var attackCmd = &cobra.Command{
 				} else {
 					metrics.Failures++
 				}
-				metrics.Latencies = append(metrics.Latencies, res.Latency)
+				metrics.AddLatency(res.Latency)
 				metrics.StatusCodes[res.StatusCode]++
 
 				metrics.Unlock()
