@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 NAME HERE <semaadamenko1@gmail.com>
+Copyright © 2025 Semen Adamenko <semaadamenko1@gmail.com>
 */
 package cmd
 
@@ -159,25 +159,41 @@ var attackCmd = &cobra.Command{
 		if metrics.TotalRequests > 0 {
 			reqPerSec := float64(metrics.TotalRequests) / elapsedTime.Seconds()
 
-			fmt.Printf("Total Requests: %d\n", metrics.TotalRequests)
-			fmt.Printf("Successful Requests: %d\n", metrics.Successes)
-			fmt.Printf("Failed Requests: %d\n", metrics.Failures)
+			if cfg.Output != "" && cfg.Output != "stdout" {
+				jsonData, err := metrics.ToJSON(cfg, elapsedTime, reqPerSec, calculatePercentile)
+				if err != nil {
+					fmt.Printf("Error generating JSON report: %v\n", err)
+					os.Exit(1)
+				}
 
-			avgLatency := metrics.TotalLatency / time.Duration(metrics.TotalRequests)
+				err = os.WriteFile(cfg.Output, jsonData, 0644)
+				if err != nil {
+					fmt.Printf("Error writing output file: %v\n", err)
+					os.Exit(1)
+				}
 
-			fmt.Printf("Total Elapsed Time: %v\n", elapsedTime.Round(time.Second))
-			fmt.Printf("Average Latency: %v\n", avgLatency.Round(time.Millisecond))
-			fmt.Printf("Total Throughput (Req/sec): %.2f\n", reqPerSec)
+				fmt.Printf("Results saved to %s\n", cfg.Output)
+			} else {
+				fmt.Printf("Total Requests: %d\n", metrics.TotalRequests)
+				fmt.Printf("Successful Requests: %d\n", metrics.Successes)
+				fmt.Printf("Failed Requests: %d\n", metrics.Failures)
 
-			fmt.Printf("\nLatency Percentiles\n")
-			fmt.Printf("  P50: %v\n", calculatePercentile(metrics.Latencies, 50).Round(time.Millisecond))
-			fmt.Printf("  P90: %v\n", calculatePercentile(metrics.Latencies, 90).Round(time.Millisecond))
-			fmt.Printf("  P95: %v\n", calculatePercentile(metrics.Latencies, 95).Round(time.Millisecond))
-			fmt.Printf("  P99: %v\n", calculatePercentile(metrics.Latencies, 99).Round(time.Millisecond))
+				avgLatency := metrics.TotalLatency / time.Duration(metrics.TotalRequests)
 
-			fmt.Printf("\nStatus Codes\n")
-			for code, count := range metrics.StatusCodes {
-				fmt.Printf("  [%d]: %d (%.2f%%)\n", code, count, float64(count)/float64(metrics.TotalRequests)*100)
+				fmt.Printf("Total Elapsed Time: %v\n", elapsedTime.Round(time.Second))
+				fmt.Printf("Average Latency: %v\n", avgLatency.Round(time.Millisecond))
+				fmt.Printf("Total Throughput (Req/sec): %.2f\n", reqPerSec)
+
+				fmt.Printf("\nLatency Percentiles\n")
+				fmt.Printf("  P50: %v\n", calculatePercentile(metrics.Latencies, 50).Round(time.Millisecond))
+				fmt.Printf("  P90: %v\n", calculatePercentile(metrics.Latencies, 90).Round(time.Millisecond))
+				fmt.Printf("  P95: %v\n", calculatePercentile(metrics.Latencies, 95).Round(time.Millisecond))
+				fmt.Printf("  P99: %v\n", calculatePercentile(metrics.Latencies, 99).Round(time.Millisecond))
+
+				fmt.Printf("\nStatus Codes\n")
+				for code, count := range metrics.StatusCodes {
+					fmt.Printf("  [%d]: %d (%.2f%%)\n", code, count, float64(count)/float64(metrics.TotalRequests)*100)
+				}
 			}
 		} else {
 			fmt.Println("No requests were sent.")
@@ -197,7 +213,7 @@ func init() {
 
 	attackCmd.Flags().StringP("rate", "r", defaultRate, "Requests per time unit (default 100/1s)")
 
-	attackCmd.Flags().StringP("output", "o", defaultOutput, "Output file (default stdout)")
+	attackCmd.Flags().StringP("output", "o", defaultOutput, "Output file path for JSON results (default: stdout for text output)")
 
 	var duration time.Duration
 	attackCmd.Flags().DurationVarP(&duration, "duration", "d", defaultDuration, "Duration of the attack (default 0)")
