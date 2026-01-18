@@ -2,12 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"math"
 	"net/url"
 	"os"
 	"regexp"
 	"runtime"
-	"sort"
 	"strconv"
 	"time"
 
@@ -123,24 +121,6 @@ func validateTimeFlags(cmd *cobra.Command) {
 	}
 }
 
-func calculatePercentile(latencies []time.Duration, percentile int) time.Duration {
-	if len(latencies) == 0 {
-		return 0
-	}
-
-	sorted := make([]time.Duration, len(latencies))
-	copy(sorted, latencies)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i] < sorted[j]
-	})
-
-	index := int(math.Ceil(float64(percentile)/100.0*float64(len(sorted)))) - 1
-	if index < 0 {
-		index = 0
-	}
-
-	return sorted[index]
-}
 func parseRateToRPS(rate string) (rps int, err error) {
 	matches := rateRegex.FindStringSubmatch(rate)
 	if len(matches) != 4 {

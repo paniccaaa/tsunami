@@ -8,12 +8,11 @@ import (
 	"math"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
+	"github.com/paniccaaa/tsunami/internal/attack"
 	"github.com/spf13/cobra"
-	"go.uber.org/ratelimit"
 )
 
 const (
@@ -32,6 +31,8 @@ const (
 	defaultOutput = "stdout"
 	defaultBody   = ""
 )
+
+var defaultHeaders = []string{}
 
 var attackCmd = &cobra.Command{
 	Use:   "attack",
@@ -58,109 +59,29 @@ Examples:
 			os.Exit(1)
 		}
 
-		client := createHTTPClient(cfg)
-		metrics := NewGlobalMetrics()
-
-		jobsBufferSize := cfg.Workers * 2
-		if jobsBufferSize < 100 {
-			jobsBufferSize = 100
-		}
-		jobs := make(chan struct{}, jobsBufferSize)
-		results := make(chan RequestResult, cfg.Workers*2)
-		var wg sync.WaitGroup
-
-		for i := uint(1); i <= cfg.Workers; i++ {
-			wg.Add(1)
-			go worker(client, cfg, jobs, results, &wg)
-		}
-
-		rateLimiter := ratelimit.New(cfg.RPS)
-
 		fmt.Printf("Starting attack on %s with %d workers for %v...\n",
 			cfg.URL, cfg.Workers, cfg.Duration)
 		fmt.Printf("Rate limit: %d requests per second (RPS)\n", cfg.RPS)
-
-		stopCh := make(chan struct{})
-		startTime := time.Now()
-
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-
-		var stopOnce sync.Once
-		stopFunc := func() {
-			stopOnce.Do(func() {
-				close(stopCh)
-			})
-		}
-
-		var attackTimer *time.Timer
-		if cfg.Duration > 0 {
-			attackTimer = time.NewTimer(cfg.Duration)
-			go func() {
-				<-attackTimer.C
-				stopFunc()
-			}()
-		}
-
-		go func() {
-			<-sigCh
-			fmt.Println("\nReceived interrupt signal. Shutting down gracefully...")
-			stopFunc()
-		}()
-
-		go func() {
-			defer close(jobs)
-
-			for {
-				select {
-				case <-stopCh:
-					return
-				default:
-					rateLimiter.Take()
-
-					select {
-					case <-stopCh:
-						return
-					case jobs <- struct{}{}:
-					}
-				}
-			}
-		}()
-
-		var collectorWG sync.WaitGroup
-		collectorWG.Add(1)
-		go func() {
-			defer collectorWG.Done()
-			for res := range results {
-				metrics.Lock()
-
-				metrics.TotalRequests++
-				metrics.TotalLatency += res.Latency
-				if res.Success {
-					metrics.Successes++
-				} else {
-					metrics.Failures++
-				}
-				metrics.AddLatency(res.Latency)
-				metrics.StatusCodes[res.StatusCode]++
-
-				metrics.Unlock()
-			}
-		}()
 
 		if cfg.Duration == 0 {
 			fmt.Println("Duration is 0. Attack running indefinitely (Ctrl+C to stop).")
 		}
 
-		<-stopCh
+		stopCh := make(chan struct{})
 
-		wg.Wait()
-		close(results)
-		collectorWG.Wait()
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-		elapsedTime := time.Since(startTime)
-		if cfg.Duration > 0 {
-			elapsedTime = cfg.Duration
+		go func() {
+			<-sigCh
+			fmt.Println("\nReceived interrupt signal. Shutting down gracefully...")
+			close(stopCh)
+		}()
+
+		metrics, elapsedTime, err := attack.RunAttack(cfg, stopCh)
+		if err != nil {
+			fmt.Printf("Error during attack: %v\n", err)
+			os.Exit(1)
 		}
 
 		fmt.Println("Attack finished. Reporting results...")
@@ -169,7 +90,7 @@ Examples:
 			reqPerSec := float64(metrics.TotalRequests) / elapsedTime.Seconds()
 
 			if cfg.Output != "" && cfg.Output != "stdout" {
-				jsonData, err := metrics.ToJSON(cfg, elapsedTime, reqPerSec, calculatePercentile)
+				jsonData, err := metrics.ToJSON(cfg, elapsedTime, reqPerSec, attack.CalculatePercentile)
 				if err != nil {
 					fmt.Printf("Error generating JSON report: %v\n", err)
 					os.Exit(1)
@@ -194,10 +115,10 @@ Examples:
 				fmt.Printf("Total Throughput (Req/sec): %.2f\n", reqPerSec)
 
 				fmt.Printf("\nLatency Percentiles\n")
-				fmt.Printf("  P50: %v\n", calculatePercentile(metrics.Latencies, 50).Round(time.Millisecond))
-				fmt.Printf("  P90: %v\n", calculatePercentile(metrics.Latencies, 90).Round(time.Millisecond))
-				fmt.Printf("  P95: %v\n", calculatePercentile(metrics.Latencies, 95).Round(time.Millisecond))
-				fmt.Printf("  P99: %v\n", calculatePercentile(metrics.Latencies, 99).Round(time.Millisecond))
+				fmt.Printf("  P50: %v\n", attack.CalculatePercentile(metrics.Latencies, 50).Round(time.Millisecond))
+				fmt.Printf("  P90: %v\n", attack.CalculatePercentile(metrics.Latencies, 90).Round(time.Millisecond))
+				fmt.Printf("  P95: %v\n", attack.CalculatePercentile(metrics.Latencies, 95).Round(time.Millisecond))
+				fmt.Printf("  P99: %v\n", attack.CalculatePercentile(metrics.Latencies, 99).Round(time.Millisecond))
 
 				fmt.Printf("\nStatus Codes\n")
 				for code, count := range metrics.StatusCodes {
@@ -208,6 +129,41 @@ Examples:
 			fmt.Println("No requests were sent.")
 		}
 	},
+}
+
+// GetAttackConfig builds an AttackConfig from command flags
+func GetAttackConfig(cmd *cobra.Command) (*attack.AttackConfig, error) {
+	url, _ := cmd.Flags().GetString("url")
+	method, _ := cmd.Flags().GetString("method")
+	body, _ := cmd.Flags().GetString("body")
+	headers, _ := cmd.Flags().GetStringArray("headers")
+	output, _ := cmd.Flags().GetString("output")
+
+	duration, _ := cmd.Flags().GetDuration("duration")
+	timeout, _ := cmd.Flags().GetDuration("timeout")
+
+	workers, _ := cmd.Flags().GetUint("workers")
+	connections, _ := cmd.Flags().GetUint("connections")
+
+	rateStr, _ := cmd.Flags().GetString("rate")
+
+	rps, err := parseRateToRPS(rateStr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &attack.AttackConfig{
+		URL:         url,
+		Method:      method,
+		Body:        body,
+		Headers:     headers,
+		Output:      output,
+		Duration:    duration,
+		Timeout:     timeout,
+		Workers:     workers,
+		Connections: connections,
+		RPS:         rps,
+	}, nil
 }
 
 func init() {

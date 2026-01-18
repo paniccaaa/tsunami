@@ -1,4 +1,7 @@
-package cmd
+/*
+Copyright © 2025 Semen Adamenko <semaadamenko1@gmail.com>
+*/
+package attack
 
 import (
 	"encoding/json"
@@ -6,6 +9,7 @@ import (
 	"time"
 )
 
+// Summary represents the test summary
 type Summary struct {
 	TotalRequests      uint64  `json:"total_requests"`
 	SuccessfulRequests uint64  `json:"successful_requests"`
@@ -15,6 +19,7 @@ type Summary struct {
 	ThroughputRPS      float64 `json:"throughput_rps"`
 }
 
+// LatencyPercentiles represents latency percentiles
 type LatencyPercentiles struct {
 	P50 string `json:"p50"`
 	P90 string `json:"p90"`
@@ -56,6 +61,7 @@ func (cfg *AttackConfig) ToJSON() AttackConfigJSON {
 	return result
 }
 
+// MetricsReport represents the full metrics report
 type MetricsReport struct {
 	Config             AttackConfigJSON   `json:"config"`
 	Summary            Summary            `json:"summary"`
@@ -64,6 +70,7 @@ type MetricsReport struct {
 	Timestamp          string             `json:"timestamp"`
 }
 
+// ToJSON converts GlobalMetrics to JSON
 func (m *GlobalMetrics) ToJSON(cfg *AttackConfig, elapsedTime time.Duration, reqPerSec float64, calculatePercentile func([]time.Duration, int) time.Duration) ([]byte, error) {
 	m.Lock()
 	defer m.Unlock()
