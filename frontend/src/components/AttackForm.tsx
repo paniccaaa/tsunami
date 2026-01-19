@@ -87,9 +87,9 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
       errs.rate = 'Format: NUMBER/NUMBERunit (e.g., 100/1s, 50/500ms)';
     }
 
-    // Duration validation
-    if (duration && !DURATION_REGEX.test(duration)) {
-      errs.duration = 'Format: NUMBERunit (e.g., 30s, 5m, 1h)';
+    // Duration validation (0 is allowed for infinite)
+    if (duration && duration !== '0' && !DURATION_REGEX.test(duration)) {
+      errs.duration = 'Format: NUMBERunit (e.g., 30s, 5m, 1h) or 0 for infinite';
     }
 
     // Timeout validation
@@ -203,7 +203,7 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
         <div>
           <Label
             text="Duration"
-            tooltip="How long to run the test. Use 0 for infinite (stop manually). Examples: 30s, 5m, 1h. Units: ms, s, m, h."
+            tooltip="How long to run the test. Enter 0 for infinite duration (stop manually with Stop button). Examples: 30s, 5m, 1h, or just 0."
           />
           <input
             type="text"
