@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -34,6 +35,9 @@ const (
 
 var defaultHeaders = []string{}
 
+// Spinner frames for live progress
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
 // formatBytes formats bytes into a human-readable string
 func formatBytes(bytes uint64) string {
 	const (
@@ -51,6 +55,125 @@ func formatBytes(bytes uint64) string {
 		return fmt.Sprintf("%.2f KB", float64(bytes)/float64(KB))
 	default:
 		return fmt.Sprintf("%d B", bytes)
+	}
+}
+
+// formatDuration formats duration in a compact way
+func formatDuration(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%.1fs", d.Seconds())
+	}
+	return fmt.Sprintf("%.1fm", d.Minutes())
+}
+
+// liveProgress displays real-time metrics during the attack
+func liveProgress(metrics *attack.GlobalMetrics, cfg *attack.AttackConfig, startTime time.Time, stopCh chan struct{}) {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	frameIdx := 0
+	lastRequests := uint64(0)
+	lastTime := startTime
+
+	for {
+		select {
+		case <-stopCh:
+			// Clear the line and return
+			fmt.Print("\r\033[K")
+			return
+		case <-ticker.C:
+			metrics.Lock()
+
+			elapsed := time.Since(startTime)
+
+			// Calculate current RPS (based on recent requests)
+			now := time.Now()
+			timeDelta := now.Sub(lastTime).Seconds()
+			requestDelta := metrics.TotalRequests - lastRequests
+			var currentRPS float64
+			if timeDelta > 0 {
+				currentRPS = float64(requestDelta) / timeDelta
+			}
+			lastRequests = metrics.TotalRequests
+			lastTime = now
+
+			// Calculate average RPS
+			var avgRPS float64
+			if elapsed.Seconds() > 0 {
+				avgRPS = float64(metrics.TotalRequests) / elapsed.Seconds()
+			}
+
+			// Calculate average latency
+			var avgLatency time.Duration
+			if metrics.TotalRequests > 0 {
+				avgLatency = metrics.TotalLatency / time.Duration(metrics.TotalRequests)
+			}
+
+			// Progress bar for duration
+			var progressBar string
+			if cfg.Duration > 0 {
+				progress := elapsed.Seconds() / cfg.Duration.Seconds()
+				if progress > 1 {
+					progress = 1
+				}
+				barWidth := 20
+				filled := int(progress * float64(barWidth))
+				progressBar = fmt.Sprintf("[%s%s] %.0f%%",
+					strings.Repeat("█", filled),
+					strings.Repeat("░", barWidth-filled),
+					progress*100)
+			} else {
+				progressBar = "[∞ infinite]"
+			}
+
+			// Build the status line
+			spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
+			frameIdx++
+
+			// Color codes
+			green := "\033[32m"
+			red := "\033[31m"
+			yellow := "\033[33m"
+			cyan := "\033[36m"
+			reset := "\033[0m"
+
+			// Error indicator
+			errorStr := fmt.Sprintf("%s%d%s", green, metrics.Failures, reset)
+			if metrics.Failures > 0 {
+				errorStr = fmt.Sprintf("%s%d%s", red, metrics.Failures, reset)
+			}
+
+			// RPS color (green if close to target, yellow/red if far)
+			rpsColor := green
+			rpsGap := (avgRPS - float64(cfg.RPS)) / float64(cfg.RPS) * 100
+			if rpsGap < -10 {
+				rpsColor = red
+			} else if rpsGap < -5 {
+				rpsColor = yellow
+			}
+
+			statusLine := fmt.Sprintf("\r%s %s %s | Reqs: %s%d%s | RPS: %s%.1f%s/%d | Avg: %s%s%s | Err: %s",
+				spinner,
+				formatDuration(elapsed),
+				progressBar,
+				cyan, metrics.TotalRequests, reset,
+				rpsColor, avgRPS, reset, cfg.RPS,
+				yellow, formatDuration(avgLatency), reset,
+				errorStr,
+			)
+
+			// Add instantaneous RPS
+			statusLine += fmt.Sprintf(" | Now: %.0f/s", currentRPS)
+
+			metrics.Unlock()
+
+			// Print status line (overwrite previous)
+			fmt.Print("\033[K") // Clear to end of line
+			fmt.Print(statusLine)
+		}
 	}
 }
 
@@ -86,25 +209,40 @@ Examples:
 		if cfg.Duration == 0 {
 			fmt.Println("Duration is 0. Attack running indefinitely (Ctrl+C to stop).")
 		}
+		fmt.Println()
 
 		stopCh := make(chan struct{})
+		progressStopCh := make(chan struct{})
 
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
+		// Create metrics before attack so we can display live progress
+		metrics := attack.NewGlobalMetrics()
+		startTime := time.Now()
+
+		// Start live progress display
+		go liveProgress(metrics, cfg, startTime, progressStopCh)
+
 		go func() {
 			<-sigCh
-			fmt.Println("\nReceived interrupt signal. Shutting down gracefully...")
+			close(progressStopCh)
+			fmt.Println("\n\nReceived interrupt signal. Shutting down gracefully...")
 			close(stopCh)
 		}()
 
-		metrics, elapsedTime, err := attack.RunAttack(cfg, stopCh)
+		metrics, elapsedTime, err := attack.RunAttackWithMetrics(cfg, stopCh, metrics)
+
+		// Stop progress display
+		close(progressStopCh)
+		time.Sleep(50 * time.Millisecond) // Let progress goroutine clean up
+
 		if err != nil {
 			fmt.Printf("Error during attack: %v\n", err)
 			os.Exit(1)
 		}
 
-		fmt.Println("Attack finished. Reporting results...")
+		fmt.Println("\nAttack finished. Reporting results...")
 
 		if metrics.TotalRequests > 0 {
 			reqPerSec := float64(metrics.TotalRequests) / elapsedTime.Seconds()
