@@ -29,14 +29,37 @@ export interface LatencyPercentiles {
   p99: string;
 }
 
+export interface ErrorBreakdown {
+  timeout: number;
+  connection_refused: number;
+  dns: number;
+  tls: number;
+  other: number;
+}
+
+export interface LatencyHistoryPoint {
+  time: number;   // Seconds since test start
+  latency: number; // Latency in ms
+}
+
 export interface MetricsPayload {
   total_requests: number;
   successes: number;
   failures: number;
   current_rps: number;
+  target_rps: number;
   average_latency: string;
+  min_latency: string;
+  max_latency: string;
   latency_percentiles?: LatencyPercentiles;
   status_codes: Record<number, number>;
+  error_breakdown?: ErrorBreakdown;
+  bytes_sent: number;
+  bytes_received: number;
+  elapsed_time: string;
+  duration: string;
+  progress: number; // 0-100, -1 for infinite
+  latency_history?: LatencyHistoryPoint[];
 }
 
 export interface StatusResponse {
@@ -64,7 +87,12 @@ export interface SummaryPayload {
   failed_requests: number;
   total_elapsed_time: string;
   average_latency: string;
+  min_latency: string;
+  max_latency: string;
   throughput_rps: number;
+  target_rps: number;
+  bytes_sent: number;
+  bytes_received: number;
 }
 
 export interface ResultsResponse {
@@ -74,6 +102,7 @@ export interface ResultsResponse {
   summary: SummaryPayload;
   latency_percentiles?: LatencyPercentiles;
   status_codes: Record<number, number>;
+  error_breakdown?: ErrorBreakdown;
   timestamp: string;
 }
 

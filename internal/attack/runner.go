@@ -5,8 +5,10 @@ package attack
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -31,6 +33,11 @@ func RunAttackWithMetrics(cfg *AttackConfig, stopCh chan struct{}, metrics *Glob
 		metrics = NewGlobalMetrics()
 	}
 
+	startTime := time.Now()
+
+	// Set test configuration for progress tracking
+	metrics.SetTestConfig(cfg.RPS, cfg.Duration, startTime)
+
 	jobsBufferSize := cfg.Workers * 2
 	if jobsBufferSize < 100 {
 		jobsBufferSize = 100
@@ -45,8 +52,6 @@ func RunAttackWithMetrics(cfg *AttackConfig, stopCh chan struct{}, metrics *Glob
 	}
 
 	rateLimiter := ratelimit.New(cfg.RPS)
-
-	startTime := time.Now()
 
 	var stopOnce sync.Once
 	stopFunc := func() {
@@ -100,9 +105,16 @@ func RunAttackWithMetrics(cfg *AttackConfig, stopCh chan struct{}, metrics *Glob
 				metrics.Successes++
 			} else {
 				metrics.Failures++
+				// Track error type
+				if res.ErrorType != "" {
+					metrics.AddError(res.ErrorType)
+				}
 			}
 			metrics.AddLatency(res.Latency)
 			metrics.StatusCodes[res.StatusCode]++
+
+			// Track bytes
+			metrics.AddBytes(res.BytesSent, res.BytesReceived)
 
 			metrics.Unlock()
 		}
@@ -136,12 +148,15 @@ func worker(
 		result := RequestResult{Success: false}
 
 		var bodyReader io.Reader
+		var bodySize uint64
 		if cfg.Body != "" {
 			bodyReader = bytes.NewBufferString(cfg.Body)
+			bodySize = uint64(len(cfg.Body))
 		}
 
 		req, err := http.NewRequest(cfg.Method, cfg.URL, bodyReader)
 		if err != nil {
+			result.ErrorType = ErrorTypeOther
 			results <- result
 			continue
 		}
@@ -164,6 +179,8 @@ func worker(
 				req.Header.Set("Content-Type", "application/json")
 			}
 		}
+
+		result.BytesSent = bodySize
 		resp, err := client.Do(req)
 
 		latency := time.Since(start)
@@ -171,9 +188,15 @@ func worker(
 
 		if err != nil {
 			result.StatusCode = 0
+			result.ErrorType = classifyError(err)
 			results <- result
 			continue
 		}
+
+		// Read and discard response body to get size
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		result.BytesReceived = uint64(len(bodyBytes))
+		resp.Body.Close()
 
 		result.StatusCode = resp.StatusCode
 		if resp.StatusCode < 400 {
@@ -181,8 +204,45 @@ func worker(
 		}
 
 		results <- result
-		resp.Body.Close()
 	}
+}
+
+// classifyError determines the type of error that occurred
+func classifyError(err error) ErrorType {
+	if err == nil {
+		return ""
+	}
+
+	errStr := err.Error()
+
+	// Check for timeout
+	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		return ErrorTypeTimeout
+	}
+
+	// Check for connection refused
+	if strings.Contains(errStr, "connection refused") {
+		return ErrorTypeConnectionRefused
+	}
+
+	// Check for DNS errors
+	if strings.Contains(errStr, "no such host") ||
+		strings.Contains(errStr, "lookup") ||
+		strings.Contains(errStr, "dns") {
+		return ErrorTypeDNS
+	}
+
+	// Check for TLS errors
+	if _, ok := err.(*tls.CertificateVerificationError); ok {
+		return ErrorTypeTLS
+	}
+	if strings.Contains(errStr, "tls") ||
+		strings.Contains(errStr, "certificate") ||
+		strings.Contains(errStr, "x509") {
+		return ErrorTypeTLS
+	}
+
+	return ErrorTypeOther
 }
 
 func createHTTPClient(cfg *AttackConfig) *http.Client {

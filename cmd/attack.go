@@ -34,6 +34,26 @@ const (
 
 var defaultHeaders = []string{}
 
+// formatBytes formats bytes into a human-readable string
+func formatBytes(bytes uint64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+
+	switch {
+	case bytes >= GB:
+		return fmt.Sprintf("%.2f GB", float64(bytes)/float64(GB))
+	case bytes >= MB:
+		return fmt.Sprintf("%.2f MB", float64(bytes)/float64(MB))
+	case bytes >= KB:
+		return fmt.Sprintf("%.2f KB", float64(bytes)/float64(KB))
+	default:
+		return fmt.Sprintf("%d B", bytes)
+	}
+}
+
 var attackCmd = &cobra.Command{
 	Use:   "attack",
 	Short: "Start a load test against a target URL",
@@ -104,25 +124,66 @@ Examples:
 
 				fmt.Printf("Results saved to %s\n", cfg.Output)
 			} else {
+				fmt.Printf("\n=== Summary ===\n")
 				fmt.Printf("Total Requests: %d\n", metrics.TotalRequests)
 				fmt.Printf("Successful Requests: %d\n", metrics.Successes)
 				fmt.Printf("Failed Requests: %d\n", metrics.Failures)
 
-				avgLatency := metrics.TotalLatency / time.Duration(metrics.TotalRequests)
-
+				fmt.Printf("\n=== Timing ===\n")
 				fmt.Printf("Total Elapsed Time: %v\n", elapsedTime.Round(time.Second))
-				fmt.Printf("Average Latency: %v\n", avgLatency.Round(time.Millisecond))
-				fmt.Printf("Total Throughput (Req/sec): %.2f\n", reqPerSec)
 
-				fmt.Printf("\nLatency Percentiles\n")
+				avgLatency := metrics.TotalLatency / time.Duration(metrics.TotalRequests)
+				fmt.Printf("Average Latency: %v\n", avgLatency.Round(time.Millisecond))
+
+				// Min/Max latency
+				if metrics.MinLatency < time.Duration(1<<63-1) {
+					fmt.Printf("Min Latency: %v\n", metrics.MinLatency.Round(time.Millisecond))
+				}
+				fmt.Printf("Max Latency: %v\n", metrics.MaxLatency.Round(time.Millisecond))
+
+				fmt.Printf("\n=== Throughput ===\n")
+				fmt.Printf("Target RPS: %d\n", cfg.RPS)
+				fmt.Printf("Actual RPS: %.2f\n", reqPerSec)
+				rpsGap := reqPerSec - float64(cfg.RPS)
+				gapPercent := (rpsGap / float64(cfg.RPS)) * 100
+				fmt.Printf("RPS Gap: %.2f (%.1f%%)\n", rpsGap, gapPercent)
+
+				fmt.Printf("\n=== Data Transfer ===\n")
+				fmt.Printf("Bytes Sent: %s\n", formatBytes(metrics.BytesSent))
+				fmt.Printf("Bytes Received: %s\n", formatBytes(metrics.BytesReceived))
+				totalBytes := metrics.BytesSent + metrics.BytesReceived
+				bandwidth := float64(totalBytes) / elapsedTime.Seconds()
+				fmt.Printf("Bandwidth: %s/s\n", formatBytes(uint64(bandwidth)))
+
+				fmt.Printf("\n=== Latency Percentiles ===\n")
 				fmt.Printf("  P50: %v\n", attack.CalculatePercentile(metrics.Latencies, 50).Round(time.Millisecond))
 				fmt.Printf("  P90: %v\n", attack.CalculatePercentile(metrics.Latencies, 90).Round(time.Millisecond))
 				fmt.Printf("  P95: %v\n", attack.CalculatePercentile(metrics.Latencies, 95).Round(time.Millisecond))
 				fmt.Printf("  P99: %v\n", attack.CalculatePercentile(metrics.Latencies, 99).Round(time.Millisecond))
 
-				fmt.Printf("\nStatus Codes\n")
+				fmt.Printf("\n=== Status Codes ===\n")
 				for code, count := range metrics.StatusCodes {
 					fmt.Printf("  [%d]: %d (%.2f%%)\n", code, count, float64(count)/float64(metrics.TotalRequests)*100)
+				}
+
+				// Error breakdown if there are failures
+				if metrics.Failures > 0 {
+					fmt.Printf("\n=== Error Breakdown ===\n")
+					if count := metrics.ErrorTypes[attack.ErrorTypeTimeout]; count > 0 {
+						fmt.Printf("  Timeout: %d\n", count)
+					}
+					if count := metrics.ErrorTypes[attack.ErrorTypeConnectionRefused]; count > 0 {
+						fmt.Printf("  Connection Refused: %d\n", count)
+					}
+					if count := metrics.ErrorTypes[attack.ErrorTypeDNS]; count > 0 {
+						fmt.Printf("  DNS Error: %d\n", count)
+					}
+					if count := metrics.ErrorTypes[attack.ErrorTypeTLS]; count > 0 {
+						fmt.Printf("  TLS Error: %d\n", count)
+					}
+					if count := metrics.ErrorTypes[attack.ErrorTypeOther]; count > 0 {
+						fmt.Printf("  Other: %d\n", count)
+					}
 				}
 			}
 		} else {

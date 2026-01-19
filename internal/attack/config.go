@@ -24,7 +24,10 @@ type AttackConfig struct {
 
 // RequestResult represents the result of a single HTTP request
 type RequestResult struct {
-	StatusCode int
-	Latency    time.Duration
-	Success    bool
+	StatusCode    int
+	Latency       time.Duration
+	Success       bool
+	ErrorType     ErrorType // Type of error if failed
+	BytesSent     uint64    // Request body size
+	BytesReceived uint64    // Response body size
 }

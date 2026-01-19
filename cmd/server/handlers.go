@@ -50,15 +50,40 @@ type StatusResponse struct {
 	Metrics     *MetricsPayload `json:"metrics,omitempty"`
 }
 
+// ErrorBreakdownPayload represents error type breakdown
+type ErrorBreakdownPayload struct {
+	Timeout          uint64 `json:"timeout"`
+	ConnectionRefused uint64 `json:"connection_refused"`
+	DNS              uint64 `json:"dns"`
+	TLS              uint64 `json:"tls"`
+	Other            uint64 `json:"other"`
+}
+
+// LatencyHistoryPoint represents a latency sample at a point in time
+type LatencyHistoryPoint struct {
+	Time    float64 `json:"time"`    // Seconds since test start
+	Latency float64 `json:"latency"` // Latency in ms
+}
+
 // MetricsPayload represents real-time metrics
 type MetricsPayload struct {
 	TotalRequests      uint64          `json:"total_requests"`
 	Successes          uint64          `json:"successes"`
 	Failures           uint64          `json:"failures"`
 	CurrentRPS         float64         `json:"current_rps"`
+	TargetRPS          int             `json:"target_rps"`
 	AverageLatency     string          `json:"average_latency"`
+	MinLatency         string          `json:"min_latency"`
+	MaxLatency         string          `json:"max_latency"`
 	LatencyPercentiles *LatencyPayload `json:"latency_percentiles,omitempty"`
 	StatusCodes        map[int]uint64  `json:"status_codes"`
+	ErrorBreakdown     *ErrorBreakdownPayload `json:"error_breakdown,omitempty"`
+	BytesSent          uint64          `json:"bytes_sent"`
+	BytesReceived      uint64          `json:"bytes_received"`
+	ElapsedTime        string          `json:"elapsed_time"`
+	Duration           string          `json:"duration"`
+	Progress           float64         `json:"progress"` // 0-100, -1 for infinite
+	LatencyHistory     []LatencyHistoryPoint `json:"latency_history,omitempty"`
 }
 
 // LatencyPayload represents latency percentiles
@@ -71,13 +96,14 @@ type LatencyPayload struct {
 
 // ResultsResponse represents the final results
 type ResultsResponse struct {
-	ID                 string          `json:"id"`
-	Status             string          `json:"status"`
-	Config             *ConfigPayload  `json:"config"`
-	Summary            *SummaryPayload `json:"summary"`
-	LatencyPercentiles *LatencyPayload `json:"latency_percentiles"`
-	StatusCodes        map[int]uint64  `json:"status_codes"`
-	Timestamp          string          `json:"timestamp"`
+	ID                 string                 `json:"id"`
+	Status             string                 `json:"status"`
+	Config             *ConfigPayload         `json:"config"`
+	Summary            *SummaryPayload        `json:"summary"`
+	LatencyPercentiles *LatencyPayload        `json:"latency_percentiles"`
+	StatusCodes        map[int]uint64         `json:"status_codes"`
+	ErrorBreakdown     *ErrorBreakdownPayload `json:"error_breakdown,omitempty"`
+	Timestamp          string                 `json:"timestamp"`
 }
 
 // ConfigPayload represents the test configuration
@@ -99,7 +125,12 @@ type SummaryPayload struct {
 	FailedRequests     uint64  `json:"failed_requests"`
 	TotalElapsedTime   string  `json:"total_elapsed_time"`
 	AverageLatency     string  `json:"average_latency"`
+	MinLatency         string  `json:"min_latency"`
+	MaxLatency         string  `json:"max_latency"`
 	ThroughputRPS      float64 `json:"throughput_rps"`
+	TargetRPS          int     `json:"target_rps"`
+	BytesSent          uint64  `json:"bytes_sent"`
+	BytesReceived      uint64  `json:"bytes_received"`
 }
 
 // ErrorResponse represents an error response
@@ -265,9 +296,9 @@ func (h *Handlers) runAttack(session *TestSession) {
 	})
 }
 
-// streamMetrics streams metrics via WebSocket every 500ms
+// streamMetrics streams metrics via WebSocket every 50ms for smooth UI updates
 func (h *Handlers) streamMetrics(session *TestSession) {
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -293,6 +324,7 @@ func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 	if metrics == nil {
 		return &MetricsPayload{
 			StatusCodes: make(map[int]uint64),
+			Progress:    -1,
 		}
 	}
 
@@ -315,18 +347,56 @@ func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 		avgLatency = avg.Round(time.Millisecond).String()
 	}
 
+	// Min/Max latency
+	var minLatency, maxLatency string
+	if metrics.MinLatency < time.Duration(1<<63-1) {
+		minLatency = metrics.MinLatency.Round(time.Millisecond).String()
+	} else {
+		minLatency = "0ms"
+	}
+	maxLatency = metrics.MaxLatency.Round(time.Millisecond).String()
+
+	// Progress calculation
+	var progress float64 = -1 // -1 means infinite
+	duration := session.Config.Duration
+	if duration > 0 {
+		progress = (elapsed.Seconds() / duration.Seconds()) * 100
+		if progress > 100 {
+			progress = 100
+		}
+	}
+
 	payload := &MetricsPayload{
 		TotalRequests:  metrics.TotalRequests,
 		Successes:      metrics.Successes,
 		Failures:       metrics.Failures,
 		CurrentRPS:     currentRPS,
+		TargetRPS:      session.Config.RPS,
 		AverageLatency: avgLatency,
+		MinLatency:     minLatency,
+		MaxLatency:     maxLatency,
 		StatusCodes:    make(map[int]uint64),
+		BytesSent:      metrics.BytesSent,
+		BytesReceived:  metrics.BytesReceived,
+		ElapsedTime:    elapsed.Round(time.Second).String(),
+		Duration:       duration.String(),
+		Progress:       progress,
 	}
 
 	// Copy status codes
 	for code, count := range metrics.StatusCodes {
 		payload.StatusCodes[code] = count
+	}
+
+	// Error breakdown
+	if metrics.Failures > 0 {
+		payload.ErrorBreakdown = &ErrorBreakdownPayload{
+			Timeout:          metrics.ErrorTypes[attack.ErrorTypeTimeout],
+			ConnectionRefused: metrics.ErrorTypes[attack.ErrorTypeConnectionRefused],
+			DNS:              metrics.ErrorTypes[attack.ErrorTypeDNS],
+			TLS:              metrics.ErrorTypes[attack.ErrorTypeTLS],
+			Other:            metrics.ErrorTypes[attack.ErrorTypeOther],
+		}
 	}
 
 	// Calculate percentiles if we have data
@@ -336,6 +406,17 @@ func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 			P90: attack.CalculatePercentile(metrics.Latencies, 90).Round(time.Millisecond).String(),
 			P95: attack.CalculatePercentile(metrics.Latencies, 95).Round(time.Millisecond).String(),
 			P99: attack.CalculatePercentile(metrics.Latencies, 99).Round(time.Millisecond).String(),
+		}
+	}
+
+	// Build latency history for chart
+	if len(metrics.LatencyHistory) > 0 {
+		payload.LatencyHistory = make([]LatencyHistoryPoint, 0, len(metrics.LatencyHistory))
+		for _, point := range metrics.LatencyHistory {
+			payload.LatencyHistory = append(payload.LatencyHistory, LatencyHistoryPoint{
+				Time:    point.Timestamp.Sub(session.StartTime).Seconds(),
+				Latency: float64(point.Latency.Milliseconds()),
+			})
 		}
 	}
 
@@ -485,6 +566,15 @@ func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 		avgLatency = avg.Round(time.Millisecond).String()
 	}
 
+	// Min/Max latency
+	var minLatency, maxLatency string
+	if metrics.MinLatency < time.Duration(1<<63-1) {
+		minLatency = metrics.MinLatency.Round(time.Millisecond).String()
+	} else {
+		minLatency = "0ms"
+	}
+	maxLatency = metrics.MaxLatency.Round(time.Millisecond).String()
+
 	cfg := session.Config
 	response := &ResultsResponse{
 		ID:     session.ID,
@@ -505,7 +595,12 @@ func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 			FailedRequests:     metrics.Failures,
 			TotalElapsedTime:   elapsed.Round(time.Second).String(),
 			AverageLatency:     avgLatency,
+			MinLatency:         minLatency,
+			MaxLatency:         maxLatency,
 			ThroughputRPS:      throughput,
+			TargetRPS:          cfg.RPS,
+			BytesSent:          metrics.BytesSent,
+			BytesReceived:      metrics.BytesReceived,
 		},
 		StatusCodes: make(map[int]uint64),
 		Timestamp:   session.EndTime.Format(time.RFC3339),
@@ -514,6 +609,17 @@ func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 	// Copy status codes
 	for code, count := range metrics.StatusCodes {
 		response.StatusCodes[code] = count
+	}
+
+	// Error breakdown
+	if metrics.Failures > 0 {
+		response.ErrorBreakdown = &ErrorBreakdownPayload{
+			Timeout:          metrics.ErrorTypes[attack.ErrorTypeTimeout],
+			ConnectionRefused: metrics.ErrorTypes[attack.ErrorTypeConnectionRefused],
+			DNS:              metrics.ErrorTypes[attack.ErrorTypeDNS],
+			TLS:              metrics.ErrorTypes[attack.ErrorTypeTLS],
+			Other:            metrics.ErrorTypes[attack.ErrorTypeOther],
+		}
 	}
 
 	// Calculate percentiles

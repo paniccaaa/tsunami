@@ -16,7 +16,12 @@ type Summary struct {
 	FailedRequests     uint64  `json:"failed_requests"`
 	TotalElapsedTime   string  `json:"total_elapsed_time"`
 	AverageLatency     string  `json:"average_latency"`
+	MinLatency         string  `json:"min_latency"`
+	MaxLatency         string  `json:"max_latency"`
 	ThroughputRPS      float64 `json:"throughput_rps"`
+	TargetRPS          int     `json:"target_rps"`
+	BytesSent          uint64  `json:"bytes_sent"`
+	BytesReceived      uint64  `json:"bytes_received"`
 }
 
 // LatencyPercentiles represents latency percentiles
@@ -61,12 +66,22 @@ func (cfg *AttackConfig) ToJSON() AttackConfigJSON {
 	return result
 }
 
+// ErrorBreakdown represents error type breakdown
+type ErrorBreakdown struct {
+	Timeout          uint64 `json:"timeout"`
+	ConnectionRefused uint64 `json:"connection_refused"`
+	DNS              uint64 `json:"dns"`
+	TLS              uint64 `json:"tls"`
+	Other            uint64 `json:"other"`
+}
+
 // MetricsReport represents the full metrics report
 type MetricsReport struct {
 	Config             AttackConfigJSON   `json:"config"`
 	Summary            Summary            `json:"summary"`
 	LatencyPercentiles LatencyPercentiles `json:"latency_percentiles"`
 	StatusCodes        map[int]uint64     `json:"status_codes"`
+	ErrorBreakdown     ErrorBreakdown     `json:"error_breakdown"`
 	Timestamp          string             `json:"timestamp"`
 }
 
@@ -90,7 +105,20 @@ func (m *GlobalMetrics) ToJSON(cfg *AttackConfig, elapsedTime time.Duration, req
 		report.Summary.AverageLatency = avgLatency.Round(time.Millisecond).String()
 	}
 
+	// Min/Max latency
+	if m.MinLatency < time.Duration(1<<63-1) {
+		report.Summary.MinLatency = m.MinLatency.Round(time.Millisecond).String()
+	} else {
+		report.Summary.MinLatency = "0ms"
+	}
+	report.Summary.MaxLatency = m.MaxLatency.Round(time.Millisecond).String()
+
 	report.Summary.ThroughputRPS = reqPerSec
+	report.Summary.TargetRPS = cfg.RPS
+
+	// Bytes transferred
+	report.Summary.BytesSent = m.BytesSent
+	report.Summary.BytesReceived = m.BytesReceived
 
 	if len(m.Latencies) > 0 {
 		report.LatencyPercentiles.P50 = calculatePercentile(m.Latencies, 50).Round(time.Millisecond).String()
@@ -101,6 +129,15 @@ func (m *GlobalMetrics) ToJSON(cfg *AttackConfig, elapsedTime time.Duration, req
 
 	report.StatusCodes = make(map[int]uint64)
 	maps.Copy(report.StatusCodes, m.StatusCodes)
+
+	// Error breakdown
+	report.ErrorBreakdown = ErrorBreakdown{
+		Timeout:          m.ErrorTypes[ErrorTypeTimeout],
+		ConnectionRefused: m.ErrorTypes[ErrorTypeConnectionRefused],
+		DNS:              m.ErrorTypes[ErrorTypeDNS],
+		TLS:              m.ErrorTypes[ErrorTypeTLS],
+		Other:            m.ErrorTypes[ErrorTypeOther],
+	}
 
 	report.Timestamp = time.Now().Format(time.RFC3339)
 
