@@ -124,6 +124,8 @@ tsunami serve
 2026/01/24 16:28:40 Starting Tsunami HTTP server on http://localhost:8080
 ```
 
+![ui](image.png)
+
 #### API endpoints
 
 ```
