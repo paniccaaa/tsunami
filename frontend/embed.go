@@ -1,3 +1,5 @@
+//go:build embed_frontend
+
 /*
 Copyright © 2025 Semen Adamenko <semaadamenko1@gmail.com>
 */
@@ -12,7 +14,11 @@ import (
 var distFS embed.FS
 
 // GetFS returns the embedded frontend filesystem.
-// The dist folder contains the built React application.
 func GetFS() (fs.FS, error) {
 	return fs.Sub(distFS, "dist")
+}
+
+// IsEmbedded returns true when frontend is embedded.
+func IsEmbedded() bool {
+	return true
 }

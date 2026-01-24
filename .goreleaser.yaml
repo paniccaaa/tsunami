@@ -24,6 +24,7 @@ builds:
       - -X github.com/paniccaaa/tsunami/cmd.Version={{.Version}}
     tags:
       - netgo
+      - embed_frontend
 
 archives:
   - id: default

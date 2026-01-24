@@ -71,22 +71,32 @@ Examples:
 			w.Write([]byte("OK"))
 		})
 
-		// Serve embedded frontend
-		staticFS, err := frontend.GetFS()
-		if err != nil {
-			log.Fatalf("Failed to load embedded frontend: %v", err)
-		}
-		spaHandler := server.NewSPAHandler(staticFS)
+		// Determine the main handler based on whether frontend is embedded
+		var mainHandler http.Handler
 
-		// Create main handler that routes API/WS to mux and everything else to SPA
-		mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			path := r.URL.Path
-			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/ws/") || path == "/health" {
-				mux.ServeHTTP(w, r)
-				return
+		if frontend.IsEmbedded() {
+			// Serve embedded frontend
+			staticFS, err := frontend.GetFS()
+			if err != nil {
+				log.Fatalf("Failed to load embedded frontend: %v", err)
 			}
-			spaHandler.ServeHTTP(w, r)
-		})
+			spaHandler := server.NewSPAHandler(staticFS)
+
+			// Create main handler that routes API/WS to mux and everything else to SPA
+			mainHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				path := r.URL.Path
+				if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/ws/") || path == "/health" {
+					mux.ServeHTTP(w, r)
+					return
+				}
+				spaHandler.ServeHTTP(w, r)
+			})
+		} else {
+			// No embedded frontend - API only mode
+			log.Println("Note: Web UI not available (built without embedded frontend)")
+			log.Println("Use 'brew install paniccaaa/tap/tsunami' for full version with web UI")
+			mainHandler = mux
+		}
 
 		// Apply CORS middleware
 		handler := server.CORSMiddleware(mainHandler)
