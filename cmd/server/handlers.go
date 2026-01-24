@@ -153,12 +153,19 @@ func NewHandlers(sm *SessionManager, hub *Hub) *Handlers {
 	}
 }
 
-// CORSMiddleware adds CORS headers to responses
+// CORSMiddleware adds CORS headers to responses.
+// In development, allows requests from localhost:3000 (Vite dev server).
+// In production, uses same-origin so no CORS headers are needed.
 func CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		origin := r.Header.Get("Origin")
+
+		// Allow localhost origins for development
+		if origin == "http://localhost:3000" || origin == "http://localhost:8080" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		}
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)

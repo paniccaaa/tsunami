@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/paniccaaa/tsunami/cmd/server"
+	"github.com/paniccaaa/tsunami/frontend"
 	"github.com/spf13/cobra"
 )
 
@@ -69,8 +71,25 @@ Examples:
 			w.Write([]byte("OK"))
 		})
 
+		// Serve embedded frontend
+		staticFS, err := frontend.GetFS()
+		if err != nil {
+			log.Fatalf("Failed to load embedded frontend: %v", err)
+		}
+		spaHandler := server.NewSPAHandler(staticFS)
+
+		// Create main handler that routes API/WS to mux and everything else to SPA
+		mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path := r.URL.Path
+			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/ws/") || path == "/health" {
+				mux.ServeHTTP(w, r)
+				return
+			}
+			spaHandler.ServeHTTP(w, r)
+		})
+
 		// Apply CORS middleware
-		handler := server.CORSMiddleware(mux)
+		handler := server.CORSMiddleware(mainHandler)
 
 		// Create server
 		srv := &http.Server{

@@ -1,0 +1,72 @@
+version: 2
+
+project_name: tsunami
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: tsunami
+    main: ./main.go
+    binary: tsunami
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/paniccaaa/tsunami/cmd.Version={{.Version}}
+    tags:
+      - netgo
+
+archives:
+  - id: default
+    builds:
+      - tsunami
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+      - "Merge branch"
+
+brews:
+  - name: tsunami
+    repository:
+      owner: paniccaaa
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/paniccaaa/tsunami"
+    description: "HTTP load testing CLI tool"
+    license: "MIT"
+    install: |
+      bin.install "tsunami"
+    test: |
+      system "#{bin}/tsunami", "--version"
+
+release:
+  github:
+    owner: paniccaaa
+    name: tsunami
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"

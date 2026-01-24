@@ -3,3 +3,6 @@ bin
 tsunami
 CLAUDE.md
 .claude
+
+# Build artifacts
+frontend/dist/
