@@ -1,6 +1,6 @@
 # Tsunami
 
-Tsunami is an HTTP load testing tool for stress testing web services with a constant request rate. It features a CLI for terminal usage and a web UI for visual monitoring.
+Tsunami is an HTTP load testing tool for stress testing web services with a constant request rate. It features a CLI for terminal usage and a web UI for visual monitoring
 
 
 ## Install
