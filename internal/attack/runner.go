@@ -38,10 +38,7 @@ func RunAttackWithMetrics(cfg *AttackConfig, stopCh chan struct{}, metrics *Glob
 	// Set test configuration for progress tracking
 	metrics.SetTestConfig(cfg.RPS, cfg.Duration, startTime)
 
-	jobsBufferSize := cfg.Workers * 2
-	if jobsBufferSize < 100 {
-		jobsBufferSize = 100
-	}
+	jobsBufferSize := max(cfg.Workers*2, 100)
 	jobs := make(chan struct{}, jobsBufferSize)
 	results := make(chan RequestResult, cfg.Workers*2)
 	var wg sync.WaitGroup
