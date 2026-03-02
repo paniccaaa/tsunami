@@ -5,7 +5,7 @@ package attack
 
 import (
 	"math"
-	"sort"
+	"slices"
 	"time"
 )
 
@@ -17,14 +17,9 @@ func CalculatePercentile(latencies []time.Duration, percentile int) time.Duratio
 
 	sorted := make([]time.Duration, len(latencies))
 	copy(sorted, latencies)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i] < sorted[j]
-	})
+	slices.Sort(sorted)
 
-	index := int(math.Ceil(float64(percentile)/100.0*float64(len(sorted)))) - 1
-	if index < 0 {
-		index = 0
-	}
+	index := max(int(math.Ceil(float64(percentile)/100.0*float64(len(sorted))))-1, 0)
 
 	return sorted[index]
 }
