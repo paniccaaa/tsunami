@@ -1,0 +1,120 @@
+{
+  "app": {
+    "title": "Tsunami",
+    "subtitle": "HTTP Load Testing Tool",
+    "footer": "Tsunami HTTP Load Testing Tool"
+  },
+  "form": {
+    "title": "Attack Configuration",
+    "url": {
+      "label": "Target URL *",
+      "tooltip": "The HTTP(S) endpoint to test. Must include protocol (http:// or https://).",
+      "placeholder": "https://example.com/api",
+      "error": "URL must start with http:// or https://"
+    },
+    "method": {
+      "label": "HTTP Method",
+      "tooltip": "HTTP method to use for requests. GET for fetching data, POST/PUT for sending data."
+    },
+    "rate": {
+      "label": "Rate",
+      "tooltip": "Request rate: REQUESTS/TIME. Examples: 100/1s (100 per second), 1000/1m (1000 per minute), 50/500ms (50 per 500ms). Units: ms, s, m, h.",
+      "placeholder": "100/1s",
+      "error": "Format: NUMBER/NUMBERunit (e.g., 100/1s, 50/500ms)"
+    },
+    "duration": {
+      "label": "Duration",
+      "tooltip": "How long to run the test. Enter 0 for infinite duration (stop manually with Stop button). Examples: 30s, 5m, 1h, or just 0.",
+      "placeholder": "30s",
+      "error": "Format: NUMBERunit (e.g., 30s, 5m, 1h) or 0 for infinite"
+    },
+    "timeout": {
+      "label": "Timeout",
+      "tooltip": "Maximum time to wait for each request response. If exceeded, request is marked as failed. Examples: 10s, 30s, 1m.",
+      "placeholder": "10s",
+      "error": "Format: NUMBERunit (e.g., 10s, 1m)"
+    },
+    "workers": {
+      "label": "Workers",
+      "tooltip": "Number of concurrent goroutines sending requests. More workers = more parallel requests. Recommended: 10-100 for most tests.",
+      "placeholder": "50",
+      "error": "Must be at least 1"
+    },
+    "connections": {
+      "label": "Connections",
+      "tooltip": "Maximum number of TCP connections to keep open. Higher values allow more parallel requests but use more resources. Recommended: equal to or higher than workers.",
+      "placeholder": "100",
+      "error": "Must be at least 1"
+    },
+    "body": {
+      "label": "Request Body",
+      "tooltip": "JSON or text body to send with each request. Leave empty for no body. Content-Type defaults to application/json.",
+      "placeholder": "{\"key\": \"value\"}"
+    },
+    "headers": {
+      "label": "Headers",
+      "tooltip": "Custom HTTP headers to send with each request. Format: Header-Name: value. Press Enter or click Add to add a header.",
+      "placeholder": "Authorization: Bearer token",
+      "add": "Add",
+      "remove": "Remove"
+    },
+    "startButton": "Start Attack",
+    "stopButton": "Stop Attack",
+    "starting": "Starting...",
+    "stopping": "Stopping..."
+  },
+  "metrics": {
+    "title": "Metrics",
+    "liveTitle": "Live Metrics",
+    "running": "Running",
+    "noMetrics": "No metrics available",
+    "noMetricsHint": "Start an attack to see real-time metrics",
+    "progress": "Progress",
+    "infiniteDuration": "Infinite duration (stop manually)",
+    "totalRequests": "Total Requests",
+    "successRate": "Success Rate",
+    "currentRps": "Current RPS",
+    "rpsGap": "RPS Gap",
+    "target": "Target",
+    "avgLatency": "Avg Latency",
+    "minLatency": "Min Latency",
+    "maxLatency": "Max Latency",
+    "p99Latency": "P99 Latency",
+    "bytesSent": "Bytes Sent",
+    "bytesReceived": "Bytes Received",
+    "totalTransfer": "Total Transfer",
+    "bandwidth": "Bandwidth",
+    "rpsChart": "RPS Over Time (vs Target)",
+    "latencyChart": "Latency Over Time",
+    "statusCodesChart": "Status Codes",
+    "errorBreakdownChart": "Error Breakdown",
+    "latencyDistribution": "Latency Distribution (Min → Max)",
+    "noLatencyHistory": "No latency history yet",
+    "noData": "No data yet",
+    "noErrors": "No errors",
+    "noLatencyData": "No latency data yet",
+    "noNetworkErrors": "No network errors. {{count}} request(s) failed with HTTP error codes (see Status Codes)."
+  },
+  "results": {
+    "title": "Test Results",
+    "downloadJson": "Download JSON",
+    "configuration": "Configuration",
+    "summary": "Summary",
+    "latencyPercentiles": "Latency Percentiles",
+    "statusCodes": "Status Codes",
+    "completedAt": "Test completed at:",
+    "url": "URL:",
+    "method": "Method:",
+    "rate": "Rate:",
+    "duration": "Duration:",
+    "workers": "Workers:",
+    "connections": "Connections:",
+    "totalRequests": "Total Requests:",
+    "successful": "Successful:",
+    "failed": "Failed:",
+    "elapsedTime": "Elapsed Time:",
+    "avgLatency": "Avg Latency:",
+    "throughput": "Throughput:",
+    "errorLabel": "Error (timeout/connection)"
+  }
+}

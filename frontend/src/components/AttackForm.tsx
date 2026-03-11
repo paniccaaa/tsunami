@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AttackConfig } from '../types/api';
 
 interface AttackFormProps {
@@ -55,6 +56,7 @@ function ValidationError({ message }: { message: string | null }) {
 }
 
 export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackFormProps) {
+  const { t } = useTranslation();
   const [url, setUrl] = useState('');
   const [method, setMethod] = useState('GET');
   const [body, setBody] = useState('');
@@ -77,38 +79,32 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
       connections: null,
     };
 
-    // URL validation
     if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
-      errs.url = 'URL must start with http:// or https://';
+      errs.url = t('form.url.error');
     }
 
-    // Rate validation
     if (rate && !RATE_REGEX.test(rate)) {
-      errs.rate = 'Format: NUMBER/NUMBERunit (e.g., 100/1s, 50/500ms)';
+      errs.rate = t('form.rate.error');
     }
 
-    // Duration validation (0 is allowed for infinite)
     if (duration && duration !== '0' && !DURATION_REGEX.test(duration)) {
-      errs.duration = 'Format: NUMBERunit (e.g., 30s, 5m, 1h) or 0 for infinite';
+      errs.duration = t('form.duration.error');
     }
 
-    // Timeout validation
     if (timeout && !DURATION_REGEX.test(timeout)) {
-      errs.timeout = 'Format: NUMBERunit (e.g., 10s, 1m)';
+      errs.timeout = t('form.timeout.error');
     }
 
-    // Workers validation
     if (workers !== null && workers < 1) {
-      errs.workers = 'Must be at least 1';
+      errs.workers = t('form.workers.error');
     }
 
-    // Connections validation
     if (connections !== null && connections < 1) {
-      errs.connections = 'Must be at least 1';
+      errs.connections = t('form.connections.error');
     }
 
     return errs;
-  }, [url, rate, duration, timeout, workers, connections]);
+  }, [url, rate, duration, timeout, workers, connections, t]);
 
   const hasErrors = Object.values(errors).some((e) => e !== null);
   const isFormValid = url && !hasErrors;
@@ -143,19 +139,16 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
 
   return (
     <form onSubmit={handleSubmit} className="bg-gray-800 rounded-lg p-6 space-y-4">
-      <h2 className="text-xl font-bold text-white mb-4">Attack Configuration</h2>
+      <h2 className="text-xl font-bold text-white mb-4">{t('form.title')}</h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
-          <Label
-            text="Target URL *"
-            tooltip="The HTTP(S) endpoint to test. Must include protocol (http:// or https://)."
-          />
+          <Label text={t('form.url.label')} tooltip={t('form.url.tooltip')} />
           <input
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://example.com/api"
+            placeholder={t('form.url.placeholder')}
             required
             disabled={isRunning}
             className={`w-full px-3 py-2 bg-gray-700 border rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${
@@ -166,10 +159,7 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
         </div>
 
         <div>
-          <Label
-            text="HTTP Method"
-            tooltip="HTTP method to use for requests. GET for fetching data, POST/PUT for sending data."
-          />
+          <Label text={t('form.method.label')} tooltip={t('form.method.tooltip')} />
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value)}
@@ -183,15 +173,12 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
         </div>
 
         <div>
-          <Label
-            text="Rate"
-            tooltip="Request rate: REQUESTS/TIME. Examples: 100/1s (100 per second), 1000/1m (1000 per minute), 50/500ms (50 per 500ms). Units: ms, s, m, h."
-          />
+          <Label text={t('form.rate.label')} tooltip={t('form.rate.tooltip')} />
           <input
             type="text"
             value={rate}
             onChange={(e) => setRate(e.target.value)}
-            placeholder="100/1s"
+            placeholder={t('form.rate.placeholder')}
             disabled={isRunning}
             className={`w-full px-3 py-2 bg-gray-700 border rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${
               errors.rate ? 'border-red-500' : 'border-gray-600'
@@ -201,15 +188,12 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
         </div>
 
         <div>
-          <Label
-            text="Duration"
-            tooltip="How long to run the test. Enter 0 for infinite duration (stop manually with Stop button). Examples: 30s, 5m, 1h, or just 0."
-          />
+          <Label text={t('form.duration.label')} tooltip={t('form.duration.tooltip')} />
           <input
             type="text"
             value={duration}
             onChange={(e) => setDuration(e.target.value)}
-            placeholder="30s"
+            placeholder={t('form.duration.placeholder')}
             disabled={isRunning}
             className={`w-full px-3 py-2 bg-gray-700 border rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${
               errors.duration ? 'border-red-500' : 'border-gray-600'
@@ -219,15 +203,12 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
         </div>
 
         <div>
-          <Label
-            text="Timeout"
-            tooltip="Maximum time to wait for each request response. If exceeded, request is marked as failed. Examples: 10s, 30s, 1m."
-          />
+          <Label text={t('form.timeout.label')} tooltip={t('form.timeout.tooltip')} />
           <input
             type="text"
             value={timeout}
             onChange={(e) => setTimeout(e.target.value)}
-            placeholder="10s"
+            placeholder={t('form.timeout.placeholder')}
             disabled={isRunning}
             className={`w-full px-3 py-2 bg-gray-700 border rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${
               errors.timeout ? 'border-red-500' : 'border-gray-600'
@@ -237,16 +218,13 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
         </div>
 
         <div>
-          <Label
-            text="Workers"
-            tooltip="Number of concurrent goroutines sending requests. More workers = more parallel requests. Recommended: 10-100 for most tests."
-          />
+          <Label text={t('form.workers.label')} tooltip={t('form.workers.tooltip')} />
           <input
             type="number"
             value={workers || ''}
             onChange={(e) => setWorkers(e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0)}
             min="1"
-            placeholder="50"
+            placeholder={t('form.workers.placeholder')}
             disabled={isRunning}
             className={`w-full px-3 py-2 bg-gray-700 border rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${
               errors.workers ? 'border-red-500' : 'border-gray-600'
@@ -256,16 +234,13 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
         </div>
 
         <div>
-          <Label
-            text="Connections"
-            tooltip="Maximum number of TCP connections to keep open. Higher values allow more parallel requests but use more resources. Recommended: equal to or higher than workers."
-          />
+          <Label text={t('form.connections.label')} tooltip={t('form.connections.tooltip')} />
           <input
             type="number"
             value={connections || ''}
             onChange={(e) => setConnections(e.target.value === '' ? 0 : parseInt(e.target.value, 10) || 0)}
             min="1"
-            placeholder="100"
+            placeholder={t('form.connections.placeholder')}
             disabled={isRunning}
             className={`w-full px-3 py-2 bg-gray-700 border rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 ${
               errors.connections ? 'border-red-500' : 'border-gray-600'
@@ -276,14 +251,11 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
 
         {(method === 'POST' || method === 'PUT' || method === 'PATCH') && (
           <div className="md:col-span-2">
-            <Label
-              text="Request Body"
-              tooltip="JSON or text body to send with each request. Leave empty for no body. Content-Type defaults to application/json."
-            />
+            <Label text={t('form.body.label')} tooltip={t('form.body.tooltip')} />
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder='{"key": "value"}'
+              placeholder={t('form.body.placeholder')}
               rows={3}
               disabled={isRunning}
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 font-mono text-sm"
@@ -292,16 +264,13 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
         )}
 
         <div className="md:col-span-2">
-          <Label
-            text="Headers"
-            tooltip="Custom HTTP headers to send with each request. Format: Header-Name: value. Press Enter or click Add to add a header."
-          />
+          <Label text={t('form.headers.label')} tooltip={t('form.headers.tooltip')} />
           <div className="flex gap-2 mb-2">
             <input
               type="text"
               value={newHeader}
               onChange={(e) => setNewHeader(e.target.value)}
-              placeholder="Authorization: Bearer token"
+              placeholder={t('form.headers.placeholder')}
               disabled={isRunning}
               className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addHeader())}
@@ -312,7 +281,7 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
               disabled={isRunning || !newHeader.includes(':')}
               className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Add
+              {t('form.headers.add')}
             </button>
           </div>
           {headers.length > 0 && (
@@ -326,7 +295,7 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
                     disabled={isRunning}
                     className="text-red-400 hover:text-red-300 disabled:opacity-50"
                   >
-                    Remove
+                    {t('form.headers.remove')}
                   </button>
                 </div>
               ))}
@@ -342,7 +311,7 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
             disabled={isLoading || !isFormValid}
             className="flex-1 px-6 py-3 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isLoading ? 'Starting...' : 'Start Attack'}
+            {isLoading ? t('form.starting') : t('form.startButton')}
           </button>
         ) : (
           <button
@@ -351,7 +320,7 @@ export function AttackForm({ onStart, onStop, isRunning, isLoading }: AttackForm
             disabled={isLoading}
             className="flex-1 px-6 py-3 bg-red-600 text-white font-semibold rounded-md hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isLoading ? 'Stopping...' : 'Stop Attack'}
+            {isLoading ? t('form.stopping') : t('form.stopButton')}
           </button>
         )}
       </div>

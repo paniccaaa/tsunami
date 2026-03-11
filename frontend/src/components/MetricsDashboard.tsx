@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   LineChart,
   Line,
@@ -73,15 +74,15 @@ function MetricCard({ label, value, subvalue, highlight }: { label: string; valu
   );
 }
 
-function ProgressBar({ progress, elapsed, duration }: { progress: number; elapsed: string; duration: string }) {
+function ProgressBar({ progress, elapsed, duration, infiniteLabel }: { progress: number; elapsed: string; duration: string; infiniteLabel: string }) {
   const isInfinite = progress < 0;
   const displayProgress = isInfinite ? 0 : Math.min(progress, 100);
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
       <div className="flex justify-between text-sm text-gray-400 mb-2">
-        <span>Progress</span>
-        <span>{elapsed} {!isInfinite && `/ ${duration}`}</span>
+        <span>{elapsed}</span>
+        {!isInfinite && <span>{duration}</span>}
       </div>
       <div className="w-full bg-gray-700 rounded-full h-3">
         {isInfinite ? (
@@ -94,13 +95,15 @@ function ProgressBar({ progress, elapsed, duration }: { progress: number; elapse
         )}
       </div>
       <div className="text-center text-sm text-gray-400 mt-1">
-        {isInfinite ? 'Infinite duration (stop manually)' : `${displayProgress.toFixed(1)}%`}
+        {isInfinite ? infiniteLabel : `${displayProgress.toFixed(1)}%`}
       </div>
     </div>
   );
 }
 
 export function MetricsDashboard({ metrics, metricsHistory, isRunning }: MetricsDashboardProps) {
+  const { t } = useTranslation();
+
   const rpsData = useMemo(() => {
     return metricsHistory.map((m, i) => ({
       time: i * 0.5,
@@ -162,8 +165,8 @@ export function MetricsDashboard({ metrics, metricsHistory, isRunning }: Metrics
   if (!metrics && !isRunning) {
     return (
       <div className="bg-gray-800 rounded-lg p-8 text-center">
-        <div className="text-gray-400 text-lg">No metrics available</div>
-        <div className="text-gray-500 text-sm mt-2">Start an attack to see real-time metrics</div>
+        <div className="text-gray-400 text-lg">{t('metrics.noMetrics')}</div>
+        <div className="text-gray-500 text-sm mt-2">{t('metrics.noMetricsHint')}</div>
       </div>
     );
   }
@@ -172,12 +175,12 @@ export function MetricsDashboard({ metrics, metricsHistory, isRunning }: Metrics
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-white">
-          {isRunning ? 'Live Metrics' : 'Metrics'}
+          {isRunning ? t('metrics.liveTitle') : t('metrics.title')}
         </h2>
         {isRunning && (
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-sm text-gray-400">Running</span>
+            <span className="text-sm text-gray-400">{t('metrics.running')}</span>
           </div>
         )}
       </div>
@@ -188,17 +191,18 @@ export function MetricsDashboard({ metrics, metricsHistory, isRunning }: Metrics
           progress={metrics.progress}
           elapsed={metrics.elapsed_time || '0s'}
           duration={metrics.duration || '0s'}
+          infiniteLabel={t('metrics.infiniteDuration')}
         />
       )}
 
       {/* Main Metrics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard
-          label="Total Requests"
+          label={t('metrics.totalRequests')}
           value={metrics?.total_requests?.toLocaleString() || 0}
         />
         <MetricCard
-          label="Success Rate"
+          label={t('metrics.successRate')}
           value={
             metrics?.total_requests
               ? `${((metrics.successes / metrics.total_requests) * 100).toFixed(1)}%`
@@ -208,12 +212,12 @@ export function MetricsDashboard({ metrics, metricsHistory, isRunning }: Metrics
           highlight={metrics && metrics.failures > 0 ? 'red' : 'green'}
         />
         <MetricCard
-          label="Current RPS"
+          label={t('metrics.currentRps')}
           value={metrics?.current_rps?.toFixed(1) || '0.0'}
-          subvalue={`Target: ${metrics?.target_rps || 0}`}
+          subvalue={`${t('metrics.target')}: ${metrics?.target_rps || 0}`}
         />
         <MetricCard
-          label="RPS Gap"
+          label={t('metrics.rpsGap')}
           value={`${rpsGap >= 0 ? '+' : ''}${rpsGap.toFixed(1)}`}
           subvalue={`${rpsGapPercent >= 0 ? '+' : ''}${rpsGapPercent.toFixed(1)}%`}
           highlight={rpsGapColor}
@@ -222,43 +226,19 @@ export function MetricsDashboard({ metrics, metricsHistory, isRunning }: Metrics
 
       {/* Latency Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard
-          label="Avg Latency"
-          value={metrics?.average_latency || '0ms'}
-        />
-        <MetricCard
-          label="Min Latency"
-          value={metrics?.min_latency || '0ms'}
-          highlight="green"
-        />
-        <MetricCard
-          label="Max Latency"
-          value={metrics?.max_latency || '0ms'}
-          highlight="red"
-        />
-        <MetricCard
-          label="P99 Latency"
-          value={metrics?.latency_percentiles?.p99 || '0ms'}
-          highlight="yellow"
-        />
+        <MetricCard label={t('metrics.avgLatency')} value={metrics?.average_latency || '0ms'} />
+        <MetricCard label={t('metrics.minLatency')} value={metrics?.min_latency || '0ms'} highlight="green" />
+        <MetricCard label={t('metrics.maxLatency')} value={metrics?.max_latency || '0ms'} highlight="red" />
+        <MetricCard label={t('metrics.p99Latency')} value={metrics?.latency_percentiles?.p99 || '0ms'} highlight="yellow" />
       </div>
 
       {/* Data Transfer Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MetricCard label={t('metrics.bytesSent')} value={formatBytes(metrics?.bytes_sent || 0)} />
+        <MetricCard label={t('metrics.bytesReceived')} value={formatBytes(metrics?.bytes_received || 0)} />
+        <MetricCard label={t('metrics.totalTransfer')} value={formatBytes((metrics?.bytes_sent || 0) + (metrics?.bytes_received || 0))} />
         <MetricCard
-          label="Bytes Sent"
-          value={formatBytes(metrics?.bytes_sent || 0)}
-        />
-        <MetricCard
-          label="Bytes Received"
-          value={formatBytes(metrics?.bytes_received || 0)}
-        />
-        <MetricCard
-          label="Total Transfer"
-          value={formatBytes((metrics?.bytes_sent || 0) + (metrics?.bytes_received || 0))}
-        />
-        <MetricCard
-          label="Bandwidth"
+          label={t('metrics.bandwidth')}
           value={(() => {
             if (!metrics?.elapsed_time) return '0 B/s';
             const match = metrics.elapsed_time.match(/(\d+)/);
@@ -272,73 +252,44 @@ export function MetricsDashboard({ metrics, metricsHistory, isRunning }: Metrics
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-white mb-4">RPS Over Time (vs Target)</h3>
+          <h3 className="text-lg font-semibold text-white mb-4">{t('metrics.rpsChart')}</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={rpsData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis
-                  dataKey="time"
-                  stroke="#9ca3af"
-                  tickFormatter={(v) => `${v}s`}
-                />
+                <XAxis dataKey="time" stroke="#9ca3af" tickFormatter={(v) => `${v}s`} />
                 <YAxis stroke="#9ca3af" />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#1f2937', border: 'none' }}
                   labelStyle={{ color: '#9ca3af' }}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="target"
-                  stroke="#6b7280"
-                  strokeWidth={1}
-                  strokeDasharray="5 5"
-                  dot={false}
-                  name="Target RPS"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="rps"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  dot={false}
-                  name="Actual RPS"
-                />
+                <Line type="monotone" dataKey="target" stroke="#6b7280" strokeWidth={1} strokeDasharray="5 5" dot={false} name="Target RPS" />
+                <Line type="monotone" dataKey="rps" stroke="#3b82f6" strokeWidth={2} dot={false} name="Actual RPS" />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-white mb-4">Latency Over Time</h3>
+          <h3 className="text-lg font-semibold text-white mb-4">{t('metrics.latencyChart')}</h3>
           <div className="h-64">
             {latencyHistoryData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={latencyHistoryData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis
-                    dataKey="time"
-                    stroke="#9ca3af"
-                    tickFormatter={(v) => `${v}s`}
-                  />
+                  <XAxis dataKey="time" stroke="#9ca3af" tickFormatter={(v) => `${v}s`} />
                   <YAxis stroke="#9ca3af" tickFormatter={(v) => `${v}ms`} />
                   <Tooltip
                     contentStyle={{ backgroundColor: '#1f2937', border: 'none' }}
                     labelStyle={{ color: '#9ca3af' }}
                     formatter={(value: number) => [`${value}ms`, 'Latency']}
                   />
-                  <Area
-                    type="monotone"
-                    dataKey="latency"
-                    stroke="#8b5cf6"
-                    fill="#8b5cf680"
-                    strokeWidth={2}
-                  />
+                  <Area type="monotone" dataKey="latency" stroke="#8b5cf6" fill="#8b5cf680" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-full text-gray-500">
-                No latency history yet
+                {t('metrics.noLatencyHistory')}
               </div>
             )}
           </div>
@@ -348,7 +299,7 @@ export function MetricsDashboard({ metrics, metricsHistory, isRunning }: Metrics
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-white mb-4">Status Codes</h3>
+          <h3 className="text-lg font-semibold text-white mb-4">{t('metrics.statusCodesChart')}</h3>
           <div className="h-64">
             {statusCodeData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -366,21 +317,19 @@ export function MetricsDashboard({ metrics, metricsHistory, isRunning }: Metrics
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1f2937', border: 'none' }}
-                  />
+                  <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none' }} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-full text-gray-500">
-                No data yet
+                {t('metrics.noData')}
               </div>
             )}
           </div>
         </div>
 
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-white mb-4">Error Breakdown</h3>
+          <h3 className="text-lg font-semibold text-white mb-4">{t('metrics.errorBreakdownChart')}</h3>
           <div className="h-64">
             {errorData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -398,16 +347,14 @@ export function MetricsDashboard({ metrics, metricsHistory, isRunning }: Metrics
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1f2937', border: 'none' }}
-                  />
+                  <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none' }} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-full text-gray-500 text-center px-4">
                 {metrics?.failures
-                  ? `No network errors. ${metrics.failures} request(s) failed with HTTP error codes (see Status Codes).`
-                  : 'No errors'}
+                  ? t('metrics.noNetworkErrors', { count: metrics.failures })
+                  : t('metrics.noErrors')}
               </div>
             )}
           </div>
@@ -416,7 +363,7 @@ export function MetricsDashboard({ metrics, metricsHistory, isRunning }: Metrics
 
       {/* Latency Percentiles Bar Chart */}
       <div className="bg-gray-800 rounded-lg p-4">
-        <h3 className="text-lg font-semibold text-white mb-4">Latency Distribution (Min → Max)</h3>
+        <h3 className="text-lg font-semibold text-white mb-4">{t('metrics.latencyDistribution')}</h3>
         <div className="h-48">
           {latencyData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
@@ -434,7 +381,7 @@ export function MetricsDashboard({ metrics, metricsHistory, isRunning }: Metrics
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500">
-              No latency data yet
+              {t('metrics.noLatencyData')}
             </div>
           )}
         </div>
