@@ -10,8 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "i18next": "^25.8.17",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-i18next": "^16.5.7",
     "recharts": "^2.10.0"
   },
   "devDependencies": {

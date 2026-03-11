@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AttackForm } from './components/AttackForm';
 import { MetricsDashboard } from './components/MetricsDashboard';
 import { ResultsView } from './components/ResultsView';
@@ -7,6 +8,7 @@ import { MetricsWebSocket } from './services/websocket';
 import type { AttackConfig, MetricsPayload, ResultsResponse, SessionStatus } from './types/api';
 
 function App() {
+  const { t, i18n } = useTranslation();
   const [status, setStatus] = useState<SessionStatus>('idle');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,10 +105,34 @@ function App() {
               <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              <h1 className="text-2xl font-bold text-white">Tsunami</h1>
+              <h1 className="text-2xl font-bold text-white">{t('app.title')}</h1>
             </div>
-            <div className="text-sm text-gray-400">
-              HTTP Load Testing Tool
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-400">
+                {t('app.subtitle')}
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => i18n.changeLanguage('ru')}
+                  className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                    i18n.language === 'ru'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  RU
+                </button>
+                <button
+                  onClick={() => i18n.changeLanguage('en')}
+                  className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                    i18n.language === 'en'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  EN
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -145,7 +171,7 @@ function App() {
       <footer className="bg-gray-800 border-t border-gray-700 mt-auto">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="text-center text-sm text-gray-500">
-            Tsunami HTTP Load Testing Tool
+            {t('app.footer')}
           </div>
         </div>
       </footer>
