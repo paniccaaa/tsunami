@@ -408,11 +408,12 @@ func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 
 	// Calculate percentiles if we have data
 	if len(metrics.Latencies) > 0 {
+		p50, p90, p95, p99 := attack.CalculateAllPercentiles(metrics.Latencies)
 		payload.LatencyPercentiles = &LatencyPayload{
-			P50: attack.CalculatePercentile(metrics.Latencies, 50).Round(time.Millisecond).String(),
-			P90: attack.CalculatePercentile(metrics.Latencies, 90).Round(time.Millisecond).String(),
-			P95: attack.CalculatePercentile(metrics.Latencies, 95).Round(time.Millisecond).String(),
-			P99: attack.CalculatePercentile(metrics.Latencies, 99).Round(time.Millisecond).String(),
+			P50: p50.Round(time.Millisecond).String(),
+			P90: p90.Round(time.Millisecond).String(),
+			P95: p95.Round(time.Millisecond).String(),
+			P99: p99.Round(time.Millisecond).String(),
 		}
 	}
 
@@ -631,11 +632,12 @@ func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 
 	// Calculate percentiles
 	if len(metrics.Latencies) > 0 {
+		p50, p90, p95, p99 := attack.CalculateAllPercentiles(metrics.Latencies)
 		response.LatencyPercentiles = &LatencyPayload{
-			P50: attack.CalculatePercentile(metrics.Latencies, 50).Round(time.Millisecond).String(),
-			P90: attack.CalculatePercentile(metrics.Latencies, 90).Round(time.Millisecond).String(),
-			P95: attack.CalculatePercentile(metrics.Latencies, 95).Round(time.Millisecond).String(),
-			P99: attack.CalculatePercentile(metrics.Latencies, 99).Round(time.Millisecond).String(),
+			P50: p50.Round(time.Millisecond).String(),
+			P90: p90.Round(time.Millisecond).String(),
+			P95: p95.Round(time.Millisecond).String(),
+			P99: p99.Round(time.Millisecond).String(),
 		}
 	}
 

@@ -180,21 +180,20 @@ func worker(
 		result.BytesSent = bodySize
 		resp, err := client.Do(req)
 
-		latency := time.Since(start)
-		result.Latency = latency
-
 		if err != nil {
+			result.Latency = time.Since(start)
 			result.StatusCode = 0
 			result.ErrorType = classifyError(err)
 			results <- result
 			continue
 		}
 
-		// Read and discard response body to get size
+		// Read and discard response body to get size; latency includes full transfer
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		result.BytesReceived = uint64(len(bodyBytes))
 		resp.Body.Close()
 
+		result.Latency = time.Since(start)
+		result.BytesReceived = uint64(len(bodyBytes))
 		result.StatusCode = resp.StatusCode
 		if resp.StatusCode < 400 {
 			result.Success = true
