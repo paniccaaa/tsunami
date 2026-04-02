@@ -31,6 +31,7 @@ func validateAndSetCPUs(cmd *cobra.Command) {
 }
 
 func attackPreRun(cmd *cobra.Command, args []string) {
+	validateAndSetCPUs(cmd)
 	validateRateFormat(cmd)
 	validateWorkersAndConnections(cmd)
 	validateURL(cmd)

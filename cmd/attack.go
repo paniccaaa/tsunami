@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -214,6 +215,9 @@ Examples:
 		stopCh := make(chan struct{})
 		progressStopCh := make(chan struct{})
 
+		var progressOnce sync.Once
+		stopProgress := func() { progressOnce.Do(func() { close(progressStopCh) }) }
+
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
@@ -226,7 +230,7 @@ Examples:
 
 		go func() {
 			<-sigCh
-			close(progressStopCh)
+			stopProgress()
 			fmt.Println("\n\nReceived interrupt signal. Shutting down gracefully...")
 			close(stopCh)
 		}()
@@ -234,7 +238,7 @@ Examples:
 		metrics, elapsedTime, err := attack.RunAttackWithMetrics(cfg, stopCh, metrics)
 
 		// Stop progress display
-		close(progressStopCh)
+		stopProgress()
 		time.Sleep(50 * time.Millisecond) // Let progress goroutine clean up
 
 		if err != nil {
@@ -248,7 +252,7 @@ Examples:
 			reqPerSec := float64(metrics.TotalRequests) / elapsedTime.Seconds()
 
 			if cfg.Output != "" && cfg.Output != "stdout" {
-				jsonData, err := metrics.ToJSON(cfg, elapsedTime, reqPerSec, attack.CalculatePercentile)
+				jsonData, err := metrics.ToJSON(cfg, elapsedTime, reqPerSec)
 				if err != nil {
 					fmt.Printf("Error generating JSON report: %v\n", err)
 					os.Exit(1)
@@ -294,10 +298,11 @@ Examples:
 				fmt.Printf("Bandwidth: %s/s\n", formatBytes(uint64(bandwidth)))
 
 				fmt.Printf("\n=== Latency Percentiles ===\n")
-				fmt.Printf("  P50: %v\n", attack.CalculatePercentile(metrics.Latencies, 50).Round(time.Millisecond))
-				fmt.Printf("  P90: %v\n", attack.CalculatePercentile(metrics.Latencies, 90).Round(time.Millisecond))
-				fmt.Printf("  P95: %v\n", attack.CalculatePercentile(metrics.Latencies, 95).Round(time.Millisecond))
-				fmt.Printf("  P99: %v\n", attack.CalculatePercentile(metrics.Latencies, 99).Round(time.Millisecond))
+				p50, p90, p95, p99 := attack.CalculateAllPercentiles(metrics.Latencies)
+				fmt.Printf("  P50: %v\n", p50.Round(time.Millisecond))
+				fmt.Printf("  P90: %v\n", p90.Round(time.Millisecond))
+				fmt.Printf("  P95: %v\n", p95.Round(time.Millisecond))
+				fmt.Printf("  P99: %v\n", p99.Round(time.Millisecond))
 
 				fmt.Printf("\n=== Status Codes ===\n")
 				for code, count := range metrics.StatusCodes {

@@ -86,7 +86,7 @@ type MetricsReport struct {
 }
 
 // ToJSON converts GlobalMetrics to JSON
-func (m *GlobalMetrics) ToJSON(cfg *AttackConfig, elapsedTime time.Duration, reqPerSec float64, calculatePercentile func([]time.Duration, int) time.Duration) ([]byte, error) {
+func (m *GlobalMetrics) ToJSON(cfg *AttackConfig, elapsedTime time.Duration, reqPerSec float64) ([]byte, error) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -121,10 +121,11 @@ func (m *GlobalMetrics) ToJSON(cfg *AttackConfig, elapsedTime time.Duration, req
 	report.Summary.BytesReceived = m.BytesReceived
 
 	if len(m.Latencies) > 0 {
-		report.LatencyPercentiles.P50 = calculatePercentile(m.Latencies, 50).Round(time.Millisecond).String()
-		report.LatencyPercentiles.P90 = calculatePercentile(m.Latencies, 90).Round(time.Millisecond).String()
-		report.LatencyPercentiles.P95 = calculatePercentile(m.Latencies, 95).Round(time.Millisecond).String()
-		report.LatencyPercentiles.P99 = calculatePercentile(m.Latencies, 99).Round(time.Millisecond).String()
+		p50, p90, p95, p99 := CalculateAllPercentiles(m.Latencies)
+		report.LatencyPercentiles.P50 = p50.Round(time.Millisecond).String()
+		report.LatencyPercentiles.P90 = p90.Round(time.Millisecond).String()
+		report.LatencyPercentiles.P95 = p95.Round(time.Millisecond).String()
+		report.LatencyPercentiles.P99 = p99.Round(time.Millisecond).String()
 	}
 
 	report.StatusCodes = make(map[int]uint64)
