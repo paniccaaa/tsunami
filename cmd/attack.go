@@ -70,22 +70,27 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%.1fm", d.Minutes())
 }
 
-// liveProgress displays real-time metrics during the attack
-func liveProgress(metrics *attack.GlobalMetrics, cfg *attack.AttackConfig, startTime time.Time, stopCh chan struct{}) {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
+// liveProgress displays real-time metrics during the attack.
+// It returns a channel that is closed when the goroutine exits.
+func liveProgress(metrics *attack.GlobalMetrics, cfg *attack.AttackConfig, startTime time.Time, stopCh chan struct{}) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
 
-	frameIdx := 0
-	lastRequests := uint64(0)
-	lastTime := startTime
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
 
-	for {
-		select {
-		case <-stopCh:
-			// Clear the line and return
-			fmt.Print("\r\033[K")
-			return
-		case <-ticker.C:
+		frameIdx := 0
+		lastRequests := uint64(0)
+		lastTime := startTime
+
+		for {
+			select {
+			case <-stopCh:
+				// Clear the line and return
+				fmt.Print("\r\033[K")
+				return
+			case <-ticker.C:
 			metrics.Lock()
 
 			elapsed := time.Since(startTime)
@@ -176,6 +181,8 @@ func liveProgress(metrics *attack.GlobalMetrics, cfg *attack.AttackConfig, start
 			fmt.Print(statusLine)
 		}
 	}
+	}()
+	return done
 }
 
 var attackCmd = &cobra.Command{
@@ -226,7 +233,7 @@ Examples:
 		startTime := time.Now()
 
 		// Start live progress display
-		go liveProgress(metrics, cfg, startTime, progressStopCh)
+		progressDone := liveProgress(metrics, cfg, startTime, progressStopCh)
 
 		go func() {
 			<-sigCh
@@ -237,9 +244,9 @@ Examples:
 
 		metrics, elapsedTime, err := attack.RunAttackWithMetrics(cfg, stopCh, metrics)
 
-		// Stop progress display
+		// Stop progress display and wait for the goroutine to exit
 		stopProgress()
-		time.Sleep(50 * time.Millisecond) // Let progress goroutine clean up
+		<-progressDone
 
 		if err != nil {
 			fmt.Printf("Error during attack: %v\n", err)
@@ -351,7 +358,7 @@ func GetAttackConfig(cmd *cobra.Command) (*attack.AttackConfig, error) {
 
 	rateStr, _ := cmd.Flags().GetString("rate")
 
-	rps, err := parseRateToRPS(rateStr)
+	rps, err := attack.ParseRateToRPS(rateStr)
 	if err != nil {
 		return nil, err
 	}
