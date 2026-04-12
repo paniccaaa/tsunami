@@ -6,24 +6,44 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/paniccaaa/tsunami/internal/attack"
+	"github.com/paniccaaa/tsunami/internal/grpcattack"
 )
 
-// StartRequest represents the request body for starting an attack
+// StartRequest represents the request body for starting an attack.
+// Set Protocol to "grpc" and fill GRPC* fields for gRPC tests;
+// leave Protocol empty or "http" for HTTP tests.
 type StartRequest struct {
-	URL         string   `json:"url"`
-	Method      string   `json:"method"`
-	Body        string   `json:"body"`
-	Headers     []string `json:"headers"`
-	Rate        string   `json:"rate"`
-	Duration    string   `json:"duration"`
-	Timeout     string   `json:"timeout"`
-	Workers     uint     `json:"workers"`
-	Connections uint     `json:"connections"`
+	// Shared
+	Protocol    string        `json:"protocol"`     // "http" (default) | "grpc"
+	Rate        string        `json:"rate"`
+	Duration    string        `json:"duration"`
+	Timeout     string        `json:"timeout"`
+	Workers     uint          `json:"workers"`
+	Connections uint          `json:"connections"`
+
+	// HTTP-only
+	URL         string        `json:"url"`
+	Method      string        `json:"method"`
+	Body        string        `json:"body"`
+	Headers     []string      `json:"headers"`
+
+	// gRPC-only
+	GRPCTarget   string   `json:"grpc_target"`
+	GRPCService  string   `json:"grpc_service"`
+	GRPCMethod   string   `json:"grpc_method"`
+	GRPCData     string   `json:"grpc_data"`
+	GRPCProto    string   `json:"grpc_proto"`
+	GRPCMetadata []string `json:"grpc_metadata"`
+	Insecure     bool     `json:"insecure"`
+	CACert       string   `json:"ca_cert"`
 }
 
 // StartResponse represents the response for starting an attack
@@ -138,6 +158,12 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
+// UploadProtoResponse is returned by POST /api/proto/upload
+type UploadProtoResponse struct {
+	Path string `json:"path"`
+	Name string `json:"name"`
+}
+
 // Handlers holds the HTTP handlers and dependencies
 type Handlers struct {
 	sessionManager *SessionManager
@@ -235,18 +261,61 @@ func (h *Handlers) HandleStartAttack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set defaults
-	if req.Method == "" {
-		req.Method = "GET"
-	}
 	if req.Workers == 0 {
 		req.Workers = 50
+	}
+
+	sessionID := fmt.Sprintf("test-%d", time.Now().UnixNano())
+
+	if req.Protocol == "grpc" {
+		// --- gRPC path ---
+		if req.GRPCTarget == "" || req.GRPCService == "" || req.GRPCMethod == "" {
+			writeError(w, http.StatusBadRequest, "validation_error",
+				"grpc_target, grpc_service and grpc_method are required for gRPC tests")
+			return
+		}
+		if req.Connections == 0 {
+			req.Connections = 4
+		}
+		grpcCfg := &grpcattack.Config{
+			Target:      req.GRPCTarget,
+			Service:     req.GRPCService,
+			Method:      req.GRPCMethod,
+			Data:        req.GRPCData,
+			ProtoFile:   req.GRPCProto,
+			Metadata:    req.GRPCMetadata,
+			Insecure:    req.Insecure,
+			CACert:      req.CACert,
+			Duration:    duration,
+			Timeout:     timeout,
+			Workers:     req.Workers,
+			Connections: req.Connections,
+			RPS:         rps,
+		}
+
+		session := h.sessionManager.CreateGRPCSession(sessionID, grpcCfg)
+		session.SetMetrics(attack.NewGlobalMetrics())
+		session.Start()
+
+		go h.runGRPCAttack(session)
+		go h.streamMetrics(session)
+
+		writeJSON(w, http.StatusOK, StartResponse{
+			ID:        sessionID,
+			Status:    string(StatusRunning),
+			StartedAt: session.StartTime.Format(time.RFC3339),
+		})
+		return
+	}
+
+	// --- HTTP path (default) ---
+	if req.Method == "" {
+		req.Method = "GET"
 	}
 	if req.Connections == 0 {
 		req.Connections = 100
 	}
 
-	// Create attack config
 	cfg := &attack.AttackConfig{
 		URL:         req.URL,
 		Method:      req.Method,
@@ -259,18 +328,11 @@ func (h *Handlers) HandleStartAttack(w http.ResponseWriter, r *http.Request) {
 		RPS:         rps,
 	}
 
-	// Generate session ID
-	sessionID := fmt.Sprintf("test-%d", time.Now().UnixNano())
-
-	// Create session with pre-created metrics for real-time monitoring
 	session := h.sessionManager.CreateSession(sessionID, cfg)
 	session.SetMetrics(attack.NewGlobalMetrics())
 	session.Start()
 
-	// Start attack in goroutine
 	go h.runAttack(session)
-
-	// Start metrics streaming
 	go h.streamMetrics(session)
 
 	writeJSON(w, http.StatusOK, StartResponse{
@@ -283,6 +345,28 @@ func (h *Handlers) HandleStartAttack(w http.ResponseWriter, r *http.Request) {
 // runAttack runs the attack in a goroutine
 func (h *Handlers) runAttack(session *TestSession) {
 	metrics, elapsed, err := attack.RunAttackWithMetrics(session.Config, session.StopCh, session.GetMetrics())
+
+	if err != nil {
+		session.SetError(err)
+		h.wsHub.Broadcast(WSMessage{
+			Type:      "error",
+			Timestamp: time.Now().Format(time.RFC3339),
+			Data:      map[string]string{"error": err.Error()},
+		})
+		return
+	}
+
+	session.Complete(metrics, elapsed)
+	h.wsHub.Broadcast(WSMessage{
+		Type:      "completed",
+		Timestamp: time.Now().Format(time.RFC3339),
+		Data:      h.buildMetricsPayload(session),
+	})
+}
+
+// runGRPCAttack runs a gRPC attack in a goroutine.
+func (h *Handlers) runGRPCAttack(session *TestSession) {
+	metrics, elapsed, err := grpcattack.RunAttack(session.GRPCConfig, session.StopCh, session.GetMetrics())
 
 	if err != nil {
 		session.SetError(err)
@@ -362,9 +446,18 @@ func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 	}
 	maxLatency = metrics.MaxLatency.Round(time.Millisecond).String()
 
-	// Progress calculation
+	// Progress calculation — read Duration/RPS from whichever config is set
+	var duration time.Duration
+	var targetRPS int
+	if session.Config != nil {
+		duration = session.Config.Duration
+		targetRPS = session.Config.RPS
+	} else if session.GRPCConfig != nil {
+		duration = session.GRPCConfig.Duration
+		targetRPS = session.GRPCConfig.RPS
+	}
+
 	var progress float64 = -1 // -1 means infinite
-	duration := session.Config.Duration
 	if duration > 0 {
 		progress = (elapsed.Seconds() / duration.Seconds()) * 100
 		if progress > 100 {
@@ -377,7 +470,7 @@ func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 		Successes:      metrics.Successes,
 		Failures:       metrics.Failures,
 		CurrentRPS:     currentRPS,
-		TargetRPS:      session.Config.RPS,
+		TargetRPS:      targetRPS,
 		AverageLatency: avgLatency,
 		MinLatency:     minLatency,
 		MaxLatency:     maxLatency,
@@ -582,11 +675,12 @@ func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 	}
 	maxLatency = metrics.MaxLatency.Round(time.Millisecond).String()
 
-	cfg := session.Config
-	response := &ResultsResponse{
-		ID:     session.ID,
-		Status: string(session.GetStatus()),
-		Config: &ConfigPayload{
+	var cfgPayload *ConfigPayload
+	var summaryRPS int
+	if session.Config != nil {
+		cfg := session.Config
+		summaryRPS = cfg.RPS
+		cfgPayload = &ConfigPayload{
 			URL:         cfg.URL,
 			Method:      cfg.Method,
 			Body:        cfg.Body,
@@ -595,7 +689,24 @@ func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 			Duration:    cfg.Duration.String(),
 			Workers:     cfg.Workers,
 			Connections: cfg.Connections,
-		},
+		}
+	} else if session.GRPCConfig != nil {
+		gcfg := session.GRPCConfig
+		summaryRPS = gcfg.RPS
+		cfgPayload = &ConfigPayload{
+			URL:         gcfg.Target,
+			Method:      gcfg.Service + "/" + gcfg.Method,
+			Rate:        fmt.Sprintf("%d/1s", gcfg.RPS),
+			Duration:    gcfg.Duration.String(),
+			Workers:     gcfg.Workers,
+			Connections: gcfg.Connections,
+		}
+	}
+
+	response := &ResultsResponse{
+		ID:     session.ID,
+		Status: string(session.GetStatus()),
+		Config: cfgPayload,
 		Summary: &SummaryPayload{
 			TotalRequests:      metrics.TotalRequests,
 			SuccessfulRequests: metrics.Successes,
@@ -605,7 +716,7 @@ func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 			MinLatency:         minLatency,
 			MaxLatency:         maxLatency,
 			ThroughputRPS:      throughput,
-			TargetRPS:          cfg.RPS,
+			TargetRPS:          summaryRPS,
 			BytesSent:          metrics.BytesSent,
 			BytesReceived:      metrics.BytesReceived,
 		},
@@ -643,20 +754,73 @@ func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 	return response
 }
 
+// HandleProtoUpload handles POST /api/proto/upload.
+// It accepts a multipart form with a single "file" field containing a .proto file,
+// writes it to a temp file, and returns the path for use in subsequent attack configs.
+func (h *Handlers) HandleProtoUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Only POST is allowed")
+		return
+	}
+
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_form", "Failed to parse multipart form")
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "missing_file", "No file provided in 'file' field")
+		return
+	}
+	defer file.Close()
+
+	if !strings.HasSuffix(strings.ToLower(header.Filename), ".proto") {
+		writeError(w, http.StatusBadRequest, "invalid_file_type", "Only .proto files are accepted")
+		return
+	}
+
+	content, err := io.ReadAll(io.LimitReader(file, 10<<20))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "read_error", "Failed to read uploaded file")
+		return
+	}
+
+	tmpFile, err := os.CreateTemp("", "tsunami-proto-*.proto")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "temp_file_error", "Failed to create temp file")
+		return
+	}
+	defer tmpFile.Close()
+
+	if _, err := tmpFile.Write(content); err != nil {
+		os.Remove(tmpFile.Name())
+		writeError(w, http.StatusInternalServerError, "write_error", "Failed to write temp file")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, UploadProtoResponse{
+		Path: tmpFile.Name(),
+		Name: header.Filename,
+	})
+}
+
 // Validation helpers
 
 func validateStartRequest(req *StartRequest) error {
-	if req.URL == "" {
-		return fmt.Errorf("url is required")
-	}
+	if req.Protocol != "grpc" {
+		if req.URL == "" {
+			return fmt.Errorf("url is required")
+		}
 
-	u, err := url.ParseRequestURI(req.URL)
-	if err != nil {
-		return fmt.Errorf("invalid URL format: %s", err.Error())
-	}
+		u, err := url.ParseRequestURI(req.URL)
+		if err != nil {
+			return fmt.Errorf("invalid URL format: %s", err.Error())
+		}
 
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("URL must have http or https scheme")
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return fmt.Errorf("URL must have http or https scheme")
+		}
 	}
 
 	if req.Rate == "" {

@@ -1,7 +1,7 @@
 import type { WSMessage, MetricsPayload } from '../types/api';
 
 type MessageHandler = (data: MetricsPayload) => void;
-type StatusHandler = (type: string) => void;
+type StatusHandler = (type: string, errorMessage?: string) => void;
 
 export class MetricsWebSocket {
   private ws: WebSocket | null = null;
@@ -31,11 +31,14 @@ export class MetricsWebSocket {
 
         if (message.type === 'metrics' && message.data) {
           this.onMetrics(message.data as MetricsPayload);
-        } else if (message.type === 'completed' || message.type === 'stopped' || message.type === 'error') {
+        } else if (message.type === 'completed' || message.type === 'stopped') {
           this.onStatus(message.type);
           if (message.data) {
             this.onMetrics(message.data as MetricsPayload);
           }
+        } else if (message.type === 'error') {
+          const errorMsg = (message.data as Record<string, string>)?.error;
+          this.onStatus('error', errorMsg);
         }
       } catch (err) {
         console.error('Failed to parse WebSocket message:', err);

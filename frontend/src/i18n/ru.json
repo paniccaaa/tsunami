@@ -58,6 +58,55 @@
       "add": "Добавить",
       "remove": "Удалить"
     },
+    "protocol": {
+      "label": "Протокол",
+      "http": "HTTP",
+      "grpc": "gRPC"
+    },
+    "grpcTarget": {
+      "label": "Адрес *",
+      "tooltip": "Адрес gRPC сервера в формате host:port, например localhost:50051",
+      "placeholder": "localhost:50051",
+      "error": "Должен быть в формате host:port"
+    },
+    "grpcService": {
+      "label": "Сервис *",
+      "tooltip": "Полное имя сервиса, например helloworld.Greeter",
+      "placeholder": "helloworld.Greeter",
+      "error": "Имя сервиса обязательно"
+    },
+    "grpcMethod": {
+      "label": "Метод *",
+      "tooltip": "Имя RPC метода без точек, например SayHello",
+      "placeholder": "SayHello",
+      "error": "Имя метода обязательно"
+    },
+    "grpcData": {
+      "label": "Данные запроса (JSON)",
+      "tooltip": "JSON payload, отправляемый с каждым запросом. Оставьте {} для пустого сообщения.",
+      "placeholder": "{\"name\": \"world\"}",
+      "error": "Должен быть валидный JSON"
+    },
+    "grpcProto": {
+      "label": "Proto файл",
+      "tooltip": "Загрузите локальный .proto файл. Оставьте пустым для использования server reflection.",
+      "placeholder": "Или введите серверный путь вручную...",
+      "browse": "Обзор...",
+      "uploading": "Загрузка...",
+      "clear": "Очистить файл",
+      "uploadError": "Не удалось загрузить proto файл"
+    },
+    "grpcMetadata": {
+      "label": "gRPC метаданные",
+      "tooltip": "Метаданные key-value, отправляемые с каждым запросом. Формат: key:value.",
+      "placeholder": "authorization:Bearer token",
+      "add": "Добавить",
+      "remove": "Удалить"
+    },
+    "insecure": {
+      "label": "Insecure (отключить TLS)",
+      "tooltip": "Отключить проверку TLS сертификата. Использовать только для локального тестирования."
+    },
     "startButton": "Начать атаку",
     "stopButton": "Остановить атаку",
     "starting": "Запуск...",

@@ -61,6 +61,7 @@ Examples:
 		mux.HandleFunc("/api/attack/status", handlers.HandleStatus)
 		mux.HandleFunc("/api/attack/results", handlers.HandleResults)
 		mux.HandleFunc("/api/attack/results/download", handlers.HandleDownload)
+		mux.HandleFunc("/api/proto/upload", handlers.HandleProtoUpload)
 
 		// WebSocket route
 		mux.HandleFunc("/ws/metrics", server.HandleWebSocket(wsHub))

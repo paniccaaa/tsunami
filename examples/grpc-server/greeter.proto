@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package greeter;
+
+option go_package = "github.com/paniccaaa/tsunami/examples/grpc-server/pb";
+
+// GreeterService — simple test service for Tsunami load testing.
+service GreeterService {
+  // SayHello returns a greeting. Use with --grpc-service=greeter.GreeterService --grpc-method=SayHello
+  rpc SayHello(HelloRequest) returns (HelloReply);
+
+  // Ping is a lightweight health check. Use with --grpc-method=Ping
+  rpc Ping(Empty) returns (PingReply);
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  string message    = 1;
+  int64  request_id = 2;
+}
+
+message Empty {}
+
+message PingReply {
+  string status       = 1;
+  int64  timestamp_ms = 2;
+}
