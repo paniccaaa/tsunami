@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"regexp"
 	"runtime"
 	"strconv"
-	"time"
 
+	"github.com/paniccaaa/tsunami/internal/attack"
 	"github.com/spf13/cobra"
 )
 
@@ -38,8 +37,6 @@ func attackPreRun(cmd *cobra.Command, args []string) {
 	validateTimeFlags(cmd)
 }
 
-var rateRegex = regexp.MustCompile(`^(\d+)/(\d+)(ms|s|m|h)$`)
-
 func validateRateFormat(cmd *cobra.Command) {
 	rate, err := cmd.Flags().GetString("rate")
 	if err != nil {
@@ -47,13 +44,13 @@ func validateRateFormat(cmd *cobra.Command) {
 		os.Exit(1)
 	}
 
-	if !rateRegex.MatchString(rate) {
+	if !attack.RateRegex.MatchString(rate) {
 		fmt.Printf("invalid format rate: %s\n", rate)
 		fmt.Println("Expected format: NUMBER/TIME, e.g., 100/1s or 50/1m")
 		os.Exit(1)
 	}
 
-	matches := rateRegex.FindStringSubmatch(rate)
+	matches := attack.RateRegex.FindStringSubmatch(rate)
 	rateValue, _ := strconv.Atoi(matches[1])
 
 	if rateValue == 0 {
@@ -122,41 +119,3 @@ func validateTimeFlags(cmd *cobra.Command) {
 	}
 }
 
-func parseRateToRPS(rate string) (rps int, err error) {
-	matches := rateRegex.FindStringSubmatch(rate)
-	if len(matches) != 4 {
-		return 0, fmt.Errorf("invalid rate format: %s. Expected format: N/Vunit (e.g., 100/1s)", rate)
-	}
-
-	requests, _ := strconv.Atoi(matches[1])
-	value, _ := strconv.Atoi(matches[2])
-	unit := matches[3]
-
-	var interval time.Duration
-	switch unit {
-	case "ms":
-		interval = time.Millisecond * time.Duration(value)
-	case "s":
-		interval = time.Second * time.Duration(value)
-	case "m":
-		interval = time.Minute * time.Duration(value)
-	case "h":
-		interval = time.Hour * time.Duration(value)
-	default:
-		return 0, fmt.Errorf("unknown time unit: %s", unit)
-	}
-
-	rpsFloat := float64(requests) / interval.Seconds()
-
-	if rpsFloat > 0 && rpsFloat < 1 {
-		rps = 1
-	} else {
-		rps = int(rpsFloat)
-	}
-
-	if rps == 0 {
-		rps = 1
-	}
-
-	return rps, nil
-}

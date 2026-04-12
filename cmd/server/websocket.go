@@ -167,29 +167,10 @@ func (c *Client) writePump() {
 		c.conn.Close()
 	}()
 
-	for {
-		select {
-		case message, ok := <-c.send:
-			if !ok {
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-
-			w, err := c.conn.NextWriter(websocket.TextMessage)
-			if err != nil {
-				return
-			}
-			w.Write(message)
-
-			// Add queued messages to the current websocket message
-			for range len(c.send) {
-				w.Write([]byte{'\n'})
-				w.Write(<-c.send)
-			}
-
-			if err := w.Close(); err != nil {
-				return
-			}
+	for message := range c.send {
+		if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
+			return
 		}
 	}
+	c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 }

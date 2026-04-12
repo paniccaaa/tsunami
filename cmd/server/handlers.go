@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"regexp"
 	"time"
 
 	"github.com/paniccaaa/tsunami/internal/attack"
@@ -230,7 +229,7 @@ func (h *Handlers) HandleStartAttack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse rate to RPS
-	rps, err := parseRateToRPS(req.Rate)
+	rps, err := attack.ParseRateToRPS(req.Rate)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_rate", err.Error())
 		return
@@ -646,8 +645,6 @@ func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 
 // Validation helpers
 
-var rateRegex = regexp.MustCompile(`^(\d+)/(\d+)(ms|s|m|h)$`)
-
 func validateStartRequest(req *StartRequest) error {
 	if req.URL == "" {
 		return fmt.Errorf("url is required")
@@ -666,45 +663,9 @@ func validateStartRequest(req *StartRequest) error {
 		req.Rate = "100/1s"
 	}
 
-	if !rateRegex.MatchString(req.Rate) {
+	if !attack.RateRegex.MatchString(req.Rate) {
 		return fmt.Errorf("invalid rate format, expected: NUMBER/TIME (e.g., 100/1s)")
 	}
 
 	return nil
-}
-
-func parseRateToRPS(rate string) (int, error) {
-	matches := rateRegex.FindStringSubmatch(rate)
-	if len(matches) != 4 {
-		return 0, fmt.Errorf("invalid rate format: %s", rate)
-	}
-
-	var requests int
-	fmt.Sscanf(matches[1], "%d", &requests)
-
-	var value int
-	fmt.Sscanf(matches[2], "%d", &value)
-
-	unit := matches[3]
-
-	var interval time.Duration
-	switch unit {
-	case "ms":
-		interval = time.Millisecond * time.Duration(value)
-	case "s":
-		interval = time.Second * time.Duration(value)
-	case "m":
-		interval = time.Minute * time.Duration(value)
-	case "h":
-		interval = time.Hour * time.Duration(value)
-	default:
-		return 0, fmt.Errorf("unknown time unit: %s", unit)
-	}
-
-	rps := float64(requests) / interval.Seconds()
-	if rps < 1 {
-		return 1, nil
-	}
-
-	return int(rps), nil
 }
