@@ -58,6 +58,55 @@
       "add": "Add",
       "remove": "Remove"
     },
+    "protocol": {
+      "label": "Protocol",
+      "http": "HTTP",
+      "grpc": "gRPC"
+    },
+    "grpcTarget": {
+      "label": "Target *",
+      "tooltip": "gRPC server address in host:port format, e.g. localhost:50051",
+      "placeholder": "localhost:50051",
+      "error": "Must be in host:port format"
+    },
+    "grpcService": {
+      "label": "Service *",
+      "tooltip": "Fully qualified service name, e.g. helloworld.Greeter",
+      "placeholder": "helloworld.Greeter",
+      "error": "Service name is required"
+    },
+    "grpcMethod": {
+      "label": "Method *",
+      "tooltip": "RPC method name without dots, e.g. SayHello",
+      "placeholder": "SayHello",
+      "error": "Method name is required"
+    },
+    "grpcData": {
+      "label": "Request Data (JSON)",
+      "tooltip": "JSON payload sent with each request. Leave as {} for empty message.",
+      "placeholder": "{\"name\": \"world\"}",
+      "error": "Must be valid JSON"
+    },
+    "grpcProto": {
+      "label": "Proto File",
+      "tooltip": "Upload a local .proto file. Leave empty to use server reflection.",
+      "placeholder": "Or type a server-side path...",
+      "browse": "Browse...",
+      "uploading": "Uploading...",
+      "clear": "Clear selected file",
+      "uploadError": "Failed to upload proto file"
+    },
+    "grpcMetadata": {
+      "label": "gRPC Metadata",
+      "tooltip": "Key-value metadata sent with each request. Format: key:value.",
+      "placeholder": "authorization:Bearer token",
+      "add": "Add",
+      "remove": "Remove"
+    },
+    "insecure": {
+      "label": "Insecure (skip TLS)",
+      "tooltip": "Disable TLS certificate verification. Use for local testing only."
+    },
     "startButton": "Start Attack",
     "stopButton": "Stop Attack",
     "starting": "Starting...",

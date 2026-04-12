@@ -2,11 +2,21 @@ import { useTranslation } from 'react-i18next';
 import type { ResultsResponse } from '../types/api';
 import { downloadResults } from '../services/api';
 
+const GRPC_STATUS_NAMES: Record<number, string> = {
+  0: 'OK', 1: 'CANCELLED', 2: 'UNKNOWN', 3: 'INVALID_ARGUMENT',
+  4: 'DEADLINE_EXCEEDED', 5: 'NOT_FOUND', 6: 'ALREADY_EXISTS',
+  7: 'PERMISSION_DENIED', 8: 'RESOURCE_EXHAUSTED', 9: 'FAILED_PRECONDITION',
+  10: 'ABORTED', 11: 'OUT_OF_RANGE', 12: 'UNIMPLEMENTED', 13: 'INTERNAL',
+  14: 'UNAVAILABLE', 15: 'DATA_LOSS', 16: 'UNAUTHENTICATED',
+};
+
 interface ResultsViewProps {
   results: ResultsResponse | null;
+  protocol?: 'http' | 'grpc';
 }
 
-export function ResultsView({ results }: ResultsViewProps) {
+export function ResultsView({ results, protocol }: ResultsViewProps) {
+  const isGRPC = protocol === 'grpc';
   const { t } = useTranslation();
 
   if (!results) {
@@ -122,14 +132,25 @@ export function ResultsView({ results }: ResultsViewProps) {
           <div className="bg-gray-700 rounded-lg p-4 space-y-2 text-sm">
             {Object.entries(results.status_codes).map(([code, count]) => {
               const percentage = ((count / results.summary.total_requests) * 100).toFixed(1);
-              const isSuccess = Number(code) >= 200 && Number(code) < 300;
-              const isError = Number(code) >= 400 || code === '0';
+              const num = Number(code);
+
+              let label: string;
+              let colorClass: string;
+
+              if (isGRPC) {
+                label = `${GRPC_STATUS_NAMES[num] ?? `CODE_${num}`} (${num})`;
+                colorClass = num === 0 ? 'text-green-400' : num === 4 || num === 14 ? 'text-red-400' : 'text-yellow-400';
+              } else {
+                const isSuccess = num >= 200 && num < 300;
+                const isError = num >= 400 || num === 0;
+                label = num === 0 ? t('results.errorLabel') : `HTTP ${code}`;
+                colorClass = isSuccess ? 'text-green-400' : isError ? 'text-red-400' : 'text-yellow-400';
+              }
+
               return (
                 <div key={code} className="flex justify-between items-center">
-                  <span className="text-gray-400">
-                    {code === '0' ? t('results.errorLabel') : `HTTP ${code}`}:
-                  </span>
-                  <span className={`font-bold ${isSuccess ? 'text-green-400' : isError ? 'text-red-400' : 'text-yellow-400'}`}>
+                  <span className="text-gray-400">{label}:</span>
+                  <span className={`font-bold ${colorClass}`}>
                     {count.toLocaleString()} ({percentage}%)
                   </span>
                 </div>

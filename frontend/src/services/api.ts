@@ -55,3 +55,18 @@ export async function getResults(): Promise<ResultsResponse> {
 export function downloadResults(): void {
   window.open(`${API_URL}/api/attack/results/download`, '_blank');
 }
+
+export async function uploadProtoFile(file: File): Promise<{ path: string; name: string }> {
+  const form = new FormData();
+  form.append('file', file);
+  // Do NOT set Content-Type — browser sets multipart/form-data with boundary automatically
+  const response = await fetch(`${API_URL}/api/proto/upload`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to upload proto file');
+  }
+  return response.json();
+}

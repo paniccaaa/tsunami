@@ -15,6 +15,7 @@ function App() {
   const [metrics, setMetrics] = useState<MetricsPayload | null>(null);
   const [metricsHistory, setMetricsHistory] = useState<MetricsPayload[]>([]);
   const [results, setResults] = useState<ResultsResponse | null>(null);
+  const [protocol, setProtocol] = useState<'http' | 'grpc'>('http');
   const wsRef = useRef<MetricsWebSocket | null>(null);
 
   const handleMetricsUpdate = useCallback((data: MetricsPayload) => {
@@ -22,7 +23,7 @@ function App() {
     setMetricsHistory((prev) => [...prev.slice(-120), data]); // Keep last 60 seconds (120 * 500ms)
   }, []);
 
-  const handleStatusUpdate = useCallback((type: string) => {
+  const handleStatusUpdate = useCallback((type: string, errorMessage?: string) => {
     if (type === 'completed') {
       setStatus('completed');
       fetchResults();
@@ -31,6 +32,7 @@ function App() {
       fetchResults();
     } else if (type === 'error') {
       setStatus('error');
+      setError(errorMessage ?? 'Attack failed');
     }
   }, []);
 
@@ -71,6 +73,7 @@ function App() {
     setResults(null);
     setMetrics(null);
     setMetricsHistory([]);
+    setProtocol(config.protocol ?? 'http');
 
     try {
       await startAttack(config);
@@ -161,10 +164,11 @@ function App() {
           metrics={metrics}
           metricsHistory={metricsHistory}
           isRunning={status === 'running'}
+          protocol={protocol}
         />
 
         {(status === 'completed' || status === 'stopped') && (
-          <ResultsView results={results} />
+          <ResultsView results={results} protocol={protocol} />
         )}
       </main>
 

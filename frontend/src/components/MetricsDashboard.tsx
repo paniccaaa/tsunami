@@ -22,7 +22,48 @@ interface MetricsDashboardProps {
   metrics: MetricsPayload | null;
   metricsHistory: MetricsPayload[];
   isRunning: boolean;
+  protocol?: 'http' | 'grpc';
 }
+
+const GRPC_STATUS_NAMES: Record<number, string> = {
+  0: 'OK',
+  1: 'CANCELLED',
+  2: 'UNKNOWN',
+  3: 'INVALID_ARGUMENT',
+  4: 'DEADLINE_EXCEEDED',
+  5: 'NOT_FOUND',
+  6: 'ALREADY_EXISTS',
+  7: 'PERMISSION_DENIED',
+  8: 'RESOURCE_EXHAUSTED',
+  9: 'FAILED_PRECONDITION',
+  10: 'ABORTED',
+  11: 'OUT_OF_RANGE',
+  12: 'UNIMPLEMENTED',
+  13: 'INTERNAL',
+  14: 'UNAVAILABLE',
+  15: 'DATA_LOSS',
+  16: 'UNAUTHENTICATED',
+};
+
+const GRPC_STATUS_COLORS: Record<number, string> = {
+  0: '#22c55e',   // OK — green
+  1: '#6b7280',   // CANCELLED — gray
+  2: '#f97316',   // UNKNOWN — orange
+  3: '#eab308',   // INVALID_ARGUMENT — yellow
+  4: '#ef4444',   // DEADLINE_EXCEEDED — red
+  5: '#f97316',   // NOT_FOUND — orange
+  6: '#eab308',   // ALREADY_EXISTS — yellow
+  7: '#a855f7',   // PERMISSION_DENIED — purple
+  8: '#f97316',   // RESOURCE_EXHAUSTED — orange
+  9: '#eab308',   // FAILED_PRECONDITION — yellow
+  10: '#f97316',  // ABORTED — orange
+  11: '#eab308',  // OUT_OF_RANGE — yellow
+  12: '#6b7280',  // UNIMPLEMENTED — gray
+  13: '#ef4444',  // INTERNAL — red
+  14: '#ef4444',  // UNAVAILABLE — red
+  15: '#ef4444',  // DATA_LOSS — red
+  16: '#a855f7',  // UNAUTHENTICATED — purple
+};
 
 const STATUS_COLORS: Record<string, string> = {
   '200': '#22c55e',
@@ -101,8 +142,9 @@ function ProgressBar({ progress, elapsed, duration, infiniteLabel }: { progress:
   );
 }
 
-export function MetricsDashboard({ metrics, metricsHistory, isRunning }: MetricsDashboardProps) {
+export function MetricsDashboard({ metrics, metricsHistory, isRunning, protocol }: MetricsDashboardProps) {
   const { t } = useTranslation();
+  const isGRPC = protocol === 'grpc';
 
   const rpsData = useMemo(() => {
     return metricsHistory.map((m, i) => ({
@@ -114,18 +156,42 @@ export function MetricsDashboard({ metrics, metricsHistory, isRunning }: Metrics
 
   const statusCodeData = useMemo(() => {
     if (!metrics?.status_codes) return [];
-    return Object.entries(metrics.status_codes).map(([code, count]) => ({
-      name: code === '0' ? 'Error' : code,
-      value: count,
-      color: getStatusColor(Number(code)),
-    }));
-  }, [metrics?.status_codes]);
+    return Object.entries(metrics.status_codes).map(([code, count]) => {
+      const num = Number(code);
+      if (isGRPC) {
+        return {
+          name: GRPC_STATUS_NAMES[num] ?? `CODE_${num}`,
+          value: count,
+          color: GRPC_STATUS_COLORS[num] ?? '#6b7280',
+        };
+      }
+      return {
+        name: num === 0 ? 'Error' : code,
+        value: count,
+        color: getStatusColor(num),
+      };
+    });
+  }, [metrics?.status_codes, isGRPC]);
 
   const latencyData = useMemo(() => {
     if (!metrics?.latency_percentiles) return [];
-    const parseLatency = (s: string) => {
-      const match = s.match(/(\d+)/);
-      return match ? parseInt(match[1], 10) : 0;
+    // Parse Go duration strings (e.g. "3.851s", "312µs", "10ms", "1m2.3s") → milliseconds
+    const parseLatency = (s: string): number => {
+      if (!s) return 0;
+      let total = 0;
+      const us  = s.match(/([\d.]+)[µu]s/);
+      const ms  = s.match(/([\d.]+)ms/);
+      // Strip µs and ms before matching bare s/m/h to avoid false matches
+      const rest = s.replace(/([\d.]+)[µu]s/, '').replace(/([\d.]+)ms/, '');
+      const sec = rest.match(/([\d.]+)s/);
+      const min = rest.match(/([\d.]+)m/);
+      const hr  = rest.match(/([\d.]+)h/);
+      if (hr)  total += parseFloat(hr[1])  * 3_600_000;
+      if (min) total += parseFloat(min[1]) *    60_000;
+      if (sec) total += parseFloat(sec[1]) *     1_000;
+      if (ms)  total += parseFloat(ms[1]);
+      if (us)  total += parseFloat(us[1])  /     1_000;
+      return Math.round(total);
     };
     return [
       { name: 'Min', value: parseLatency(metrics.min_latency || '0ms') },

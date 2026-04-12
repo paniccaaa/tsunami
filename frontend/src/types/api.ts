@@ -1,13 +1,25 @@
 export interface AttackConfig {
-  url: string;
-  method: string;
-  body?: string;
-  headers?: string[];
+  // Common fields
+  protocol?: 'http' | 'grpc';
   rate: string;
   duration: string;
   timeout: string;
   workers: number;
   connections: number;
+  // HTTP-only fields
+  url?: string;
+  method?: string;
+  body?: string;
+  headers?: string[];
+  // gRPC-only fields
+  grpc_target?: string;
+  grpc_service?: string;
+  grpc_method?: string;
+  grpc_data?: string;
+  grpc_proto?: string;
+  grpc_metadata?: string[];
+  insecure?: boolean;
+  ca_cert?: string;
 }
 
 export interface StartResponse {

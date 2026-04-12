@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/paniccaaa/tsunami/internal/attack"
+	"github.com/paniccaaa/tsunami/internal/grpcattack"
 )
 
 // SessionStatus represents the current state of a test session
@@ -25,7 +26,9 @@ const (
 type TestSession struct {
 	ID          string
 	Status      SessionStatus
-	Config      *attack.AttackConfig
+	Protocol    string               // "http" (default) | "grpc"
+	Config      *attack.AttackConfig // non-nil when Protocol == "http"
+	GRPCConfig  *grpcattack.Config   // non-nil when Protocol == "grpc"
 	Metrics     *attack.GlobalMetrics
 	StartTime   time.Time
 	EndTime     time.Time
@@ -53,22 +56,32 @@ func (sm *SessionManager) GetCurrent() *TestSession {
 	return sm.current
 }
 
-// CreateSession creates a new test session, stopping any existing one
+// CreateSession creates a new HTTP test session, stopping any existing one.
 func (sm *SessionManager) CreateSession(id string, cfg *attack.AttackConfig) *TestSession {
+	return sm.createSession(id, "http", cfg, nil)
+}
+
+// CreateGRPCSession creates a new gRPC test session, stopping any existing one.
+func (sm *SessionManager) CreateGRPCSession(id string, cfg *grpcattack.Config) *TestSession {
+	return sm.createSession(id, "grpc", nil, cfg)
+}
+
+func (sm *SessionManager) createSession(id, protocol string, httpCfg *attack.AttackConfig, grpcCfg *grpcattack.Config) *TestSession {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	// Stop existing session if running
 	if sm.current != nil && sm.current.Status == StatusRunning {
 		sm.current.Stop()
 	}
 
 	session := &TestSession{
-		ID:        id,
-		Status:    StatusIdle,
-		Config:    cfg,
-		StartTime: time.Now(),
-		StopCh:    make(chan struct{}),
+		ID:         id,
+		Status:     StatusIdle,
+		Protocol:   protocol,
+		Config:     httpCfg,
+		GRPCConfig: grpcCfg,
+		StartTime:  time.Now(),
+		StopCh:     make(chan struct{}),
 	}
 
 	sm.current = session
