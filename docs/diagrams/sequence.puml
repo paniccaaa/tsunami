@@ -1,0 +1,127 @@
+@startuml sequence
+' ============================================================
+' Sequence Diagram — HTTP Attack via Web API + WebSocket
+' Scenario: Web user starts a load test and receives live metrics
+' ============================================================
+
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam sequenceArrowThickness 1.5
+skinparam participantFontSize 13
+skinparam noteFontSize 12
+
+actor       "Web User"       as User
+participant "Handlers\n(HTTP API)"   as H
+participant "SessionManager" as SM
+participant "TestSession"    as TS
+participant "AttackRunner\n(goroutine)" as AR
+participant "GlobalMetrics"  as GM
+participant "Hub\n(WebSocket)" as Hub
+participant "WS Client\n(browser)" as WS
+
+== 1. Start Attack ==
+
+User -> H : POST /api/attack/start\n{ url, rate, duration, workers, ... }
+activate H
+
+H -> H : parse & validate StartRequest
+H -> SM : CreateSession(id, attackConfig)
+activate SM
+SM -> TS : new TestSession(id)\nstatus = Idle
+SM --> H : *TestSession
+deactivate SM
+
+H -> TS : Start()
+activate TS
+TS -> TS : status = Running
+TS --> H
+deactivate TS
+
+H -> AR : go runAttack(session)
+note right of AR : goroutine — executes\nHTTP load test
+H -> H  : go streamMetrics(session)
+note right of H  : goroutine — broadcasts\nmetrics every 50 ms
+
+H --> User : 200 StartResponse\n{ id, status:"running" }
+deactivate H
+
+== 2. Connect WebSocket ==
+
+User -> Hub : WS upgrade /ws/metrics
+activate Hub
+Hub -> Hub : register Client
+Hub --> User : 101 Switching Protocols
+deactivate Hub
+
+== 3. Load Test Execution ==
+
+loop [worker goroutines — N parallel HTTP requests]
+    AR -> AR : HTTP request → measure latency
+    AR -> GM : AddLatency / AddError / AddBytes
+    activate GM
+    GM -> GM : update counters (mutex lock)
+    GM --> AR
+    deactivate GM
+end
+
+== 4. Real-Time Metrics Stream ==
+
+loop [every 50 ms while session.IsRunning()]
+    H  -> GM  : buildMetricsPayload()
+    activate GM
+    GM --> H  : MetricsPayload
+    deactivate GM
+
+    H  -> Hub : Broadcast(WSMessage{type:"metrics", data:payload})
+    activate Hub
+    Hub -> WS : send JSON frame
+    activate WS
+    WS --> Hub
+    deactivate WS
+    deactivate Hub
+end
+
+== 5. Test Completion ==
+
+AR -> GM : final read
+activate GM
+GM --> AR : GlobalMetrics
+deactivate GM
+
+AR -> TS : Complete(metrics, elapsed)
+activate TS
+TS -> TS : status = Completed\nElapsedTime = elapsed
+TS --> AR
+deactivate TS
+
+AR -> Hub : Broadcast(WSMessage{type:"completed", data:finalPayload})
+activate Hub
+Hub -> WS : send JSON frame
+deactivate Hub
+
+== Optional: Manual Stop ==
+
+User -> H : POST /api/attack/stop
+activate H
+H -> TS : Stop()
+activate TS
+TS -> TS : close(stopCh)\nstatus = Stopped
+TS --> H
+deactivate TS
+H -> Hub : Broadcast(WSMessage{type:"stopped"})
+H --> User : 200 StopResponse{ id, status:"stopped" }
+deactivate H
+
+== 6. Retrieve Final Results ==
+
+User -> H : GET /api/attack/results
+activate H
+H -> TS : GetStatus() / GetMetrics()
+activate TS
+TS --> H : status, metrics
+deactivate TS
+H -> H : buildResultsResponse()
+H --> User : 200 ResultsResponse\n{ summary, percentiles, statusCodes, ... }
+deactivate H
+
+@enduml
