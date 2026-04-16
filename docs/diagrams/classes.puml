@@ -1,0 +1,348 @@
+@startuml classes
+' ============================================================
+' Class Diagram — Tsunami HTTP Load Testing Tool
+' ============================================================
+
+skinparam classAttributeIconSize 0
+skinparam classFontSize 13
+skinparam packageFontSize 14
+skinparam arrowThickness 1.5
+hide empty members
+
+' ============================================================
+' Package: internal/attack
+' ============================================================
+package "internal/attack" #EAF4FF {
+
+    class AttackConfig {
+        + URL         : string
+        + Method      : string
+        + Body        : string
+        + Headers     : []string
+        + Output      : string
+        + Duration    : time.Duration
+        + Timeout     : time.Duration
+        + Workers     : uint
+        + Connections : uint
+        + RPS         : int
+        --
+        + ToJSON() : AttackConfigJSON
+    }
+
+    class RequestResult {
+        + StatusCode    : int
+        + Latency       : time.Duration
+        + Success       : bool
+        + ErrorType     : ErrorType
+        + BytesSent     : uint64
+        + BytesReceived : uint64
+    }
+
+    class GlobalMetrics {
+        + TotalRequests  : uint64
+        + Successes      : uint64
+        + Failures       : uint64
+        + TotalLatency   : time.Duration
+        + MinLatency     : time.Duration
+        + MaxLatency     : time.Duration
+        + BytesSent      : uint64
+        + BytesReceived  : uint64
+        + TargetRPS      : int
+        + StartTime      : time.Time
+        + Duration       : time.Duration
+        + ErrorTypes     : map[ErrorType]uint64
+        + StatusCodes    : map[int]uint64
+        + LatencyHistory : []LatencyPoint
+        + Latencies      : []time.Duration
+        - latencyHistoryIdx : int
+        - latencyIdx        : int
+        - mu                : sync.Mutex
+        --
+        + NewGlobalMetrics() : *GlobalMetrics
+        + SetTestConfig(targetRPS int, duration time.Duration, startTime time.Time)
+        + AddLatency(latency time.Duration)
+        + AddError(errType ErrorType)
+        + AddBytes(sent uint64, received uint64)
+        + ToJSON(cfg *AttackConfig, elapsed time.Duration, rps float64) : ([]byte, error)
+    }
+
+    class LatencyPoint {
+        + Timestamp : time.Time
+        + Latency   : time.Duration
+    }
+
+    enum ErrorType {
+        timeout
+        connection_refused
+        dns
+        tls
+        other
+    }
+
+    class MetricsReport {
+        + Config             : AttackConfigJSON
+        + Summary            : Summary
+        + LatencyPercentiles : LatencyPercentiles
+        + StatusCodes        : map[int]uint64
+        + ErrorBreakdown     : ErrorBreakdown
+        + Timestamp          : string
+    }
+
+    class Summary {
+        + TotalRequests      : uint64
+        + SuccessfulRequests : uint64
+        + FailedRequests     : uint64
+        + TotalElapsedTime   : string
+        + AverageLatency     : string
+        + MinLatency         : string
+        + MaxLatency         : string
+        + ThroughputRPS      : float64
+        + TargetRPS          : int
+        + BytesSent          : uint64
+        + BytesReceived      : uint64
+    }
+
+    class LatencyPercentiles {
+        + P50 : string
+        + P90 : string
+        + P95 : string
+        + P99 : string
+    }
+
+    class ErrorBreakdown {
+        + Timeout           : uint64
+        + ConnectionRefused : uint64
+        + DNS               : uint64
+        + TLS               : uint64
+        + Other             : uint64
+    }
+
+    class AttackConfigJSON {
+        + URL         : string
+        + Method      : string
+        + Body        : string
+        + Headers     : []string
+        + Duration    : string
+        + Timeout     : string
+        + Workers     : uint
+        + Connections : uint
+        + RPS         : int
+    }
+
+    interface Runner <<interface>> {
+        + RunAttack(cfg *AttackConfig, stopCh chan struct{}) : (*GlobalMetrics, time.Duration, error)
+        + RunAttackWithMetrics(cfg *AttackConfig, stopCh chan struct{}, m *GlobalMetrics) : (*GlobalMetrics, time.Duration, error)
+    }
+
+    interface MetricsCollector <<interface>> {
+        + AddLatency(latency time.Duration)
+        + AddError(errType ErrorType)
+        + AddBytes(sent uint64, received uint64)
+        + ToJSON(cfg *AttackConfig, elapsed time.Duration, rps float64) : ([]byte, error)
+    }
+
+    GlobalMetrics  ..|> MetricsCollector
+    GlobalMetrics  "1" *-- "0..*" LatencyPoint : latencyHistory
+    RequestResult  --> ErrorType
+    MetricsReport  *-- Summary
+    MetricsReport  *-- LatencyPercentiles
+    MetricsReport  *-- ErrorBreakdown
+    MetricsReport  *-- AttackConfigJSON
+}
+
+' ============================================================
+' Package: cmd/server
+' ============================================================
+package "cmd/server" #FFF4EA {
+
+    enum SessionStatus {
+        idle
+        running
+        completed
+        stopped
+        error
+    }
+
+    class TestSession {
+        + ID          : string
+        + Status      : SessionStatus
+        + Protocol    : string
+        + StartTime   : time.Time
+        + EndTime     : time.Time
+        + ElapsedTime : time.Duration
+        + Error       : error
+        - stopCh      : chan struct{}
+        - mu          : sync.RWMutex
+        --
+        + Start()
+        + Stop()
+        + Complete(metrics *GlobalMetrics, elapsed time.Duration)
+        + SetError(err error)
+        + SetMetrics(metrics *GlobalMetrics)
+        + GetStatus() : SessionStatus
+        + GetMetrics() : *GlobalMetrics
+        + IsRunning() : bool
+    }
+
+    class SessionManager {
+        - current : *TestSession
+        - mu      : sync.RWMutex
+        --
+        + NewSessionManager() : *SessionManager
+        + GetCurrent() : *TestSession
+        + CreateSession(id string, cfg *AttackConfig) : *TestSession
+        + CreateGRPCSession(id string, cfg *GRPCConfig) : *TestSession
+    }
+
+    interface SessionStore <<interface>> {
+        + GetCurrent() : *TestSession
+        + CreateSession(id string, cfg *AttackConfig) : *TestSession
+        + CreateGRPCSession(id string, cfg *GRPCConfig) : *TestSession
+    }
+
+    class Handlers {
+        - sessionManager : *SessionManager
+        - wsHub          : *Hub
+        --
+        + NewHandlers(sm *SessionManager, hub *Hub) : *Handlers
+        + HandleStartAttack(w http.ResponseWriter, r *http.Request)
+        + HandleStopAttack(w http.ResponseWriter, r *http.Request)
+        + HandleStatus(w http.ResponseWriter, r *http.Request)
+        + HandleResults(w http.ResponseWriter, r *http.Request)
+        + HandleDownload(w http.ResponseWriter, r *http.Request)
+        + HandleProtoUpload(w http.ResponseWriter, r *http.Request)
+        - runAttack(session *TestSession)
+        - runGRPCAttack(session *TestSession)
+        - streamMetrics(session *TestSession)
+        - buildMetricsPayload(session *TestSession) : *MetricsPayload
+        - buildResultsResponse(session *TestSession) : *ResultsResponse
+    }
+
+    class Hub {
+        - clients    : map[*Client]bool
+        - broadcast  : chan []byte
+        - register   : chan *Client
+        - unregister : chan *Client
+        - mu         : sync.RWMutex
+        --
+        + NewHub() : *Hub
+        + Run()
+        + Broadcast(msg WSMessage)
+        + ClientCount() : int
+    }
+
+    class Client {
+        - hub  : *Hub
+        - conn : *websocket.Conn
+        - send : chan []byte
+        --
+        - readPump()
+        - writePump()
+    }
+
+    class WSMessage {
+        + Type      : string
+        + Timestamp : string
+        + Data      : interface{}
+    }
+
+    class SPAHandler {
+        - staticFS   : fs.FS
+        - fileServer : http.Handler
+        --
+        + NewSPAHandler(staticFS fs.FS) : *SPAHandler
+        + ServeHTTP(w http.ResponseWriter, r *http.Request)
+    }
+
+    ' ── DTOs ──────────────────────────────────────────────
+    class StartRequest {
+        + Protocol    : string
+        + Rate        : string
+        + Duration    : string
+        + Timeout     : string
+        + Workers     : uint
+        + Connections : uint
+        + URL         : string
+        + Method      : string
+        + Body        : string
+        + Headers     : []string
+        + GRPCTarget  : string
+        + GRPCService : string
+        + GRPCMethod  : string
+        + GRPCData    : string
+        + GRPCProto   : string
+        + GRPCMetadata: []string
+        + Insecure    : bool
+        + CACert      : string
+    }
+
+    class StartResponse {
+        + ID        : string
+        + Status    : string
+        + StartedAt : string
+    }
+
+    class StopResponse {
+        + ID        : string
+        + Status    : string
+        + StoppedAt : string
+    }
+
+    class StatusResponse {
+        + ID          : string
+        + Status      : string
+        + StartedAt   : string
+        + ElapsedTime : string
+        + Metrics     : *MetricsPayload
+    }
+
+    class MetricsPayload {
+        + TotalRequests      : uint64
+        + Successes          : uint64
+        + Failures           : uint64
+        + CurrentRPS         : float64
+        + TargetRPS          : int
+        + AverageLatency     : string
+        + MinLatency         : string
+        + MaxLatency         : string
+        + LatencyPercentiles : *LatencyPayload
+        + StatusCodes        : map[int]uint64
+        + ErrorBreakdown     : *ErrorBreakdownPayload
+        + BytesSent          : uint64
+        + BytesReceived      : uint64
+        + ElapsedTime        : string
+        + Duration           : string
+        + Progress           : float64
+        + LatencyHistory     : []LatencyHistoryPoint
+    }
+
+    class ResultsResponse {
+        + ID                 : string
+        + Status             : string
+        + Config             : *ConfigPayload
+        + Summary            : *SummaryPayload
+        + LatencyPercentiles : *LatencyPayload
+        + StatusCodes        : map[int]uint64
+        + ErrorBreakdown     : *ErrorBreakdownPayload
+        + Timestamp          : string
+    }
+
+    SessionManager ..|> SessionStore
+    SessionManager "1" *-- "0..1" TestSession : current
+    TestSession    -->  SessionStatus
+    TestSession    -->  "internal/attack".GlobalMetrics : metrics
+    TestSession    -->  "internal/attack".AttackConfig  : config (HTTP)
+
+    Handlers       -->  SessionManager  : sessionManager
+    Handlers       -->  Hub             : wsHub
+    Handlers       ..>  StartRequest    : parses
+    Handlers       ..>  MetricsPayload  : builds
+    Handlers       ..>  ResultsResponse : builds
+
+    Hub            "1" *-- "0..*" Client  : clients
+    Client         -->  Hub               : hub
+
+    StatusResponse *-- MetricsPayload
+}
+
+@enduml
