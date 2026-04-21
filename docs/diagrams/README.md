@@ -19,7 +19,6 @@
 | `sequence.puml` | Последовательности | Динамика запуска теста через Web API + WebSocket |
 | `state_ru.puml` | Состояний | Жизненный цикл сессии тестирования (`TestSession`) |
 | `activity_ru.puml` | Деятельности | Алгоритм выполнения CLI-команды `tsunami attack` |
-| `generated_models.go` | — | Go-код, сгенерированный из диаграммы классов |
 
 ---
 
