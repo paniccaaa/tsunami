@@ -1,0 +1,56 @@
+@startuml state_ru
+skinparam stateFontSize 14
+skinparam stateArrowThickness 1.5
+skinparam noteBackgroundColor #FFFFCC
+skinparam noteBorderColor #AAAAAA
+
+title Жизненный цикл TestSession
+
+[*] --> Idle : SessionManager.CreateSession()\n/ StopCh = make(chan struct{})
+
+state Idle
+
+note right of Idle : Сессия создана.\nТест не запущен.\nMetrics = nil.
+
+Idle --> Running : session.Start()\n[конфигурация корректна]
+
+state Running {
+    state "Диспетчеризация заданий" as Dispatch
+    state "Выполнение запросов\n(N воркеров)" as Exec
+    state "Сбор метрик" as Collect
+
+    [*] --> Dispatch
+    Dispatch --> Exec    : задание отправлено
+    Exec     --> Collect : RequestResult отправлен
+    Collect  --> Dispatch : следующий такт
+}
+
+Running --> Completed : session.Complete(metrics, elapsed)\n[время истекло ИЛИ все запросы выполнены]
+Running --> Stopped   : session.Stop()\n[close(stopCh) — запрос пользователя или SIGINT]
+Running --> Error     : session.SetError(err)\n[RunAttack вернул ошибку]
+
+state Completed {
+    note right : Итоговые метрики доступны.\nРезультаты можно скачать.
+}
+
+state Stopped {
+    note right : Частичные метрики доступны.\nТест отменён пользователем.
+}
+
+state Error {
+    note right : session.Error != nil.\nКлиент получает сообщение\nоб ошибке через WebSocket.
+}
+
+Completed --> [*] : SessionManager.CreateSession()\n[новый тест заменяет старый]
+Stopped   --> [*] : SessionManager.CreateSession()
+Error     --> [*] : SessionManager.CreateSession()
+
+note bottom of Running
+    Параллельные горутины:
+    • N горутин-воркеров (HTTP-запросы)
+    • 1 горутина-коллектор метрик
+    • 1 горутина-диспетчер + rate-limiter
+    • 1 горутина streamMetrics (WebSocket, каждые 50 мс)
+end note
+
+@enduml

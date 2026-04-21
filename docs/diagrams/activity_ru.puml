@@ -1,0 +1,51 @@
+@startuml activity_ru
+skinparam activityFontSize 11
+skinparam activityArrowThickness 1.2
+skinparam swimlaneBorderThickness 1.5
+skinparam swimlaneWidth 220
+skinparam noteBackgroundColor #FFFFCC
+
+|Диспетчер|
+start
+
+:Инициализация пула соединений\nи rate limiter (N RPS);
+
+repeat
+    :ratelimiter.Take()\n(ожидание следующего токена);
+
+    if (тест завершён?) then (да)
+        break
+    endif
+
+    :Отправить задание\nв канал jobs;
+repeat while (тест активен?) is (да)
+
+:Закрыть канал jobs;
+:Дождаться завершения всех воркеров;
+:Закрыть канал results;
+
+|Воркер (×N)|
+
+repeat
+    :Получить задание\nиз канала jobs;
+    :Выполнить HTTP-запрос\nк целевому сервису;
+    :Зафиксировать задержку\nи код ответа;
+    :Отправить RequestResult\nв канал results;
+repeat while (канал jobs открыт?) is (да)
+
+|Коллектор метрик|
+
+repeat
+    :Получить RequestResult\nиз канала results;
+    :Обновить счётчики запросов\n(успехи / отказы);
+    :Добавить задержку\nв кольцевой буфер;
+    :Обновить коды ответов\nи типы ошибок;
+repeat while (канал results открыт?) is (да)
+
+:Рассчитать перцентили\n(p50 / p95 / p99 / p99.9);
+
+|Диспетчер|
+:Вернуть GlobalMetrics;
+stop
+
+@enduml
