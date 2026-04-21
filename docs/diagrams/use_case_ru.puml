@@ -1,0 +1,65 @@
+@startuml use_case_ru
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecaseFontSize 13
+skinparam arrowThickness 1.5
+
+actor "CLI-пользователь" as CLI
+actor "Веб-пользователь" as Web
+actor "Система\n(Таймер / Сигнал)" as Sys
+
+rectangle "Tsunami" {
+
+    package "CLI-режим" {
+        usecase "Запуск веб-сервера\n(tsunami serve)" as UC_Serve
+        usecase "HTTP нагрузочный тест\n(tsunami attack)" as UC_AttackCLI
+        usecase "Просмотр прогресса\n(ANSI прогресс-бар)" as UC_Progress
+        usecase "Сохранить отчёт\nв файл (JSON)" as UC_SaveReport
+    }
+
+    package "Конфигурация теста" {
+        usecase "Настройка параметров атаки\n(URL, rate, workers,\nduration, headers)" as UC_Config
+    }
+
+    package "Веб / API режим" {
+        usecase "HTTP нагрузочный тест\n(через REST API)" as UC_AttackWeb
+        usecase "gRPC нагрузочный тест\n(через REST API)" as UC_AttackGRPC
+        usecase "Загрузить .proto файл" as UC_Proto
+        usecase "Метрики в реальном\nвремени (WebSocket)" as UC_WS
+        usecase "Остановить тест\n(POST /api/attack/stop)" as UC_Stop
+        usecase "Статус теста\n(GET /api/attack/status)" as UC_Status
+        usecase "Результаты теста\n(GET /api/attack/results)" as UC_Results
+        usecase "Скачать результаты\nв формате JSON" as UC_Download
+    }
+}
+
+CLI --> UC_Serve
+CLI --> UC_AttackCLI
+CLI --> UC_Progress
+CLI --> UC_SaveReport
+
+Web --> UC_AttackWeb
+Web --> UC_AttackGRPC
+Web --> UC_Stop
+Web --> UC_Status
+Web --> UC_Results
+Web --> UC_Download
+Web --> UC_WS
+
+Sys --> UC_AttackCLI : SIGINT /\nистечение времени
+Sys --> UC_AttackWeb : истечение времени
+
+UC_AttackCLI ..> UC_Config     : <<include>>
+UC_AttackWeb  ..> UC_Config    : <<include>>
+UC_AttackGRPC ..> UC_Config    : <<include>>
+
+UC_AttackCLI ..> UC_Progress   : <<include>>
+UC_AttackWeb  ..> UC_WS        : <<include>>
+UC_AttackGRPC ..> UC_WS        : <<include>>
+
+UC_AttackCLI ..> UC_SaveReport : <<extend>>
+UC_AttackGRPC ..> UC_Proto     : <<extend>>
+UC_Results    ..> UC_Download  : <<extend>>
+
+@enduml
