@@ -3,6 +3,8 @@
 package integration_test
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -178,4 +180,41 @@ func TestRunAttack_MetricsAccuracy(t *testing.T) {
 			t.Error("expected 404 to be tracked in StatusCodes")
 		}
 	})
+}
+
+// TestHighThroughput verifies the engine sustains ≥ 1 000 RPS with P99 ≤ 50 ms.
+// Uses a minimal in-process HTTP server to measure engine throughput without Docker overhead.
+func TestHighThroughput(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	cfg := &attack.AttackConfig{
+		URL:         srv.URL,
+		Method:      "GET",
+		RPS:         1000,
+		Duration:    10 * time.Second,
+		Workers:     50,
+		Connections: 100,
+		Timeout:     5 * time.Second,
+	}
+
+	stopCh := make(chan struct{})
+	metrics, elapsed, err := attack.RunAttack(cfg, stopCh)
+	if err != nil {
+		t.Fatalf("RunAttack failed: %v", err)
+	}
+
+	actualRPS := float64(metrics.TotalRequests) / elapsed.Seconds()
+	if actualRPS < 1000 {
+		t.Errorf("throughput %.0f RPS is below target 1000 RPS", actualRPS)
+	}
+	if metrics.Failures > 0 {
+		t.Errorf("expected 0 failures, got %d", metrics.Failures)
+	}
+	_, _, _, p99 := attack.CalculateAllPercentiles(metrics.Latencies)
+	if p99 > 50*time.Millisecond {
+		t.Errorf("P99 %v exceeds 50 ms threshold", p99)
+	}
 }

@@ -1,0 +1,41 @@
+@startuml component_ru
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam backgroundColor white
+skinparam ArrowColor #222222
+skinparam ArrowThickness 1.5
+skinparam RectangleBorderColor #444444
+skinparam RectangleBackgroundColor #F5F5F5
+skinparam RectangleFontStyle bold
+skinparam linetype ortho
+
+title Компонентная структура инструмента Tsunami
+
+rectangle "**CLI-слой**\n//cmd///" as CLI #E8F4FD {
+  rectangle "attack\n(HTTP)" as A #FFFFFF
+  rectangle "grpc\n(gRPC)" as G #FFFFFF
+  rectangle "serve\n(веб-сервер)" as S #FFFFFF
+}
+
+rectangle "**Движок нагрузочного тестирования**\n//internal/attack/  ·  internal/grpcattack///" as Engine #FFF8E7 {
+  rectangle "WorkerPool + Dispatcher" as WP #FFFFFF
+  rectangle "gRPC Runner" as GR #FFFFFF
+  rectangle "RateLimiter" as RL #FFFFFF
+  rectangle "GlobalMetrics" as GM #FFFFFF
+  rectangle "AttackConfig / JSONReport" as AC #FFFFFF
+}
+
+rectangle "**HTTP-сервер и веб-интерфейс**\n//cmd/server///" as Server #F0FFF0 {
+  rectangle "SessionManager" as SM #FFFFFF
+  rectangle "REST API Handlers" as REST #FFFFFF
+  rectangle "WebSocket Hub" as WS #FFFFFF
+  rectangle "React SPA (go:embed)" as SPA #FFFFFF
+}
+
+A -left-> Engine : использует
+G -left-> Engine : использует
+S -right-> Server : запускает
+Server -left-> Engine : использует
+
+@enduml
