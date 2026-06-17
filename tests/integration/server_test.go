@@ -13,8 +13,6 @@ import (
 	"github.com/paniccaaa/tsunami/cmd/server"
 )
 
-// newHandlers creates a fresh set of dependencies for each test
-// so tests don't share state through a common SessionManager.
 func newHandlers() (*server.Handlers, *server.SessionManager) {
 	sm := server.NewSessionManager()
 	hub := server.NewHub()
@@ -22,8 +20,6 @@ func newHandlers() (*server.Handlers, *server.SessionManager) {
 	return server.NewHandlers(sm, hub), sm
 }
 
-// TestHandleStartAttack checks that POST /api/attack/start returns 200
-// with a session ID and status "running".
 func TestHandleStartAttack(t *testing.T) {
 	h, sm := newHandlers()
 
@@ -61,7 +57,6 @@ func TestHandleStartAttack(t *testing.T) {
 		t.Error("expected started_at in response")
 	}
 
-	// Stop the background goroutines so they don't outlive the test.
 	t.Cleanup(func() {
 		if session := sm.GetCurrent(); session != nil {
 			session.Stop()
@@ -69,7 +64,6 @@ func TestHandleStartAttack(t *testing.T) {
 	})
 }
 
-// TestHandleStartAttack_ValidationError checks that a bad request returns 400.
 func TestHandleStartAttack_ValidationError(t *testing.T) {
 	h, _ := newHandlers()
 
@@ -107,8 +101,6 @@ func TestHandleStartAttack_ValidationError(t *testing.T) {
 	}
 }
 
-// TestHandleStopAttack checks the full start → stop cycle.
-// The attack uses a 60s duration so it won't finish on its own during the test.
 func TestHandleStopAttack(t *testing.T) {
 	h, _ := newHandlers()
 
@@ -130,8 +122,6 @@ func TestHandleStopAttack(t *testing.T) {
 		t.Fatalf("start failed: %d %s", startRR.Code, startRR.Body.String())
 	}
 
-	// session.Start() is called synchronously before the goroutines launch,
-	// but we give RunAttackWithMetrics a moment to block on stopCh.
 	time.Sleep(50 * time.Millisecond)
 
 	stopReq := httptest.NewRequest(http.MethodPost, "/api/attack/stop", nil)
@@ -158,7 +148,6 @@ func TestHandleStopAttack(t *testing.T) {
 	}
 }
 
-// TestHandleStopAttack_NoSession checks that stopping with no active session returns 404.
 func TestHandleStopAttack_NoSession(t *testing.T) {
 	h, _ := newHandlers()
 
@@ -171,7 +160,6 @@ func TestHandleStopAttack_NoSession(t *testing.T) {
 	}
 }
 
-// TestHandleStartAttack_WrongMethod checks that a GET request to /start returns 405.
 func TestHandleStartAttack_WrongMethod(t *testing.T) {
 	h, _ := newHandlers()
 

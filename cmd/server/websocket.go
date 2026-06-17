@@ -1,6 +1,3 @@
-/*
-Copyright © 2025 Semen Adamenko <semaadamenko1@gmail.com>
-*/
 package server
 
 import (
@@ -12,21 +9,18 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// WSMessage represents a WebSocket message
 type WSMessage struct {
 	Type      string      `json:"type"`
 	Timestamp string      `json:"timestamp"`
 	Data      interface{} `json:"data,omitempty"`
 }
 
-// Client represents a WebSocket client
 type Client struct {
 	hub  *Hub
 	conn *websocket.Conn
 	send chan []byte
 }
 
-// Hub manages WebSocket connections
 type Hub struct {
 	clients    map[*Client]bool
 	broadcast  chan []byte
@@ -35,7 +29,6 @@ type Hub struct {
 	mu         sync.RWMutex
 }
 
-// NewHub creates a new Hub
 func NewHub() *Hub {
 	return &Hub{
 		clients:    make(map[*Client]bool),
@@ -45,7 +38,6 @@ func NewHub() *Hub {
 	}
 }
 
-// Run starts the hub
 func (h *Hub) Run() {
 	for {
 		select {
@@ -79,7 +71,6 @@ func (h *Hub) Run() {
 	}
 }
 
-// Broadcast sends a message to all connected clients
 func (h *Hub) Broadcast(msg WSMessage) {
 	data, err := json.Marshal(msg)
 	if err != nil {
@@ -96,7 +87,6 @@ func (h *Hub) Broadcast(msg WSMessage) {
 	}
 }
 
-// ClientCount returns the number of connected clients
 func (h *Hub) ClientCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -108,7 +98,6 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
-		// Allow localhost origins for development and embedded frontend
 		return origin == "" ||
 			origin == "http://localhost:3000" ||
 			origin == "http://localhost:5173" ||
@@ -119,7 +108,6 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// HandleWebSocket handles WebSocket connections
 func HandleWebSocket(hub *Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -136,13 +124,11 @@ func HandleWebSocket(hub *Hub) http.HandlerFunc {
 
 		hub.register <- client
 
-		// Start goroutines for reading and writing
 		go client.writePump()
 		go client.readPump()
 	}
 }
 
-// readPump pumps messages from the WebSocket connection to the hub
 func (c *Client) readPump() {
 	defer func() {
 		c.hub.unregister <- c
@@ -157,11 +143,9 @@ func (c *Client) readPump() {
 			}
 			break
 		}
-		// We don't process incoming messages, just keep connection alive
 	}
 }
 
-// writePump pumps messages from the hub to the WebSocket connection
 func (c *Client) writePump() {
 	defer func() {
 		c.conn.Close()

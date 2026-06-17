@@ -1,6 +1,3 @@
-/*
-Copyright © 2025 Semen Adamenko <semaadamenko1@gmail.com>
-*/
 package cmd
 
 import (
@@ -42,20 +39,15 @@ Examples:
 	Run: func(cmd *cobra.Command, args []string) {
 		port, _ := cmd.Flags().GetInt("port")
 
-		// Create session manager and WebSocket hub
 		sessionManager := server.NewSessionManager()
 		wsHub := server.NewHub()
 
-		// Start WebSocket hub
 		go wsHub.Run()
 
-		// Create handlers
 		handlers := server.NewHandlers(sessionManager, wsHub)
 
-		// Setup routes
 		mux := http.NewServeMux()
 
-		// API routes
 		mux.HandleFunc("/api/attack/start", handlers.HandleStartAttack)
 		mux.HandleFunc("/api/attack/stop", handlers.HandleStopAttack)
 		mux.HandleFunc("/api/attack/status", handlers.HandleStatus)
@@ -63,27 +55,22 @@ Examples:
 		mux.HandleFunc("/api/attack/results/download", handlers.HandleDownload)
 		mux.HandleFunc("/api/proto/upload", handlers.HandleProtoUpload)
 
-		// WebSocket route
 		mux.HandleFunc("/ws/metrics", server.HandleWebSocket(wsHub))
 
-		// Health check
 		mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("OK"))
 		})
 
-		// Determine the main handler based on whether frontend is embedded
 		var mainHandler http.Handler
 
 		if frontend.IsEmbedded() {
-			// Serve embedded frontend
 			staticFS, err := frontend.GetFS()
 			if err != nil {
 				log.Fatalf("Failed to load embedded frontend: %v", err)
 			}
 			spaHandler := server.NewSPAHandler(staticFS)
 
-			// Create main handler that routes API/WS to mux and everything else to SPA
 			mainHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				path := r.URL.Path
 				if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/ws/") || path == "/health" {
@@ -93,16 +80,13 @@ Examples:
 				spaHandler.ServeHTTP(w, r)
 			})
 		} else {
-			// No embedded frontend - API only mode
 			log.Println("Note: Web UI not available (built without embedded frontend)")
 			log.Println("Use 'brew install paniccaaa/tap/tsunami' for full version with web UI")
 			mainHandler = mux
 		}
 
-		// Apply CORS middleware
 		handler := server.CORSMiddleware(mainHandler)
 
-		// Create server
 		srv := &http.Server{
 			Addr:         fmt.Sprintf(":%d", port),
 			Handler:      handler,
@@ -111,7 +95,6 @@ Examples:
 			IdleTimeout:  60 * time.Second,
 		}
 
-		// Start server in goroutine
 		go func() {
 			log.Printf("Starting Tsunami HTTP server on http://localhost:%d", port)
 			log.Printf("WebSocket endpoint: ws://localhost:%d/ws/metrics", port)
@@ -122,14 +105,12 @@ Examples:
 			}
 		}()
 
-		// Wait for interrupt signal
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 		<-sigCh
 
 		log.Println("\nShutting down server...")
 
-		// Graceful shutdown with timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 

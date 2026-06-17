@@ -24,8 +24,6 @@ import (
 	"github.com/paniccaaa/tsunami/internal/attack"
 )
 
-// RunAttack runs a gRPC unary load test and returns the collected metrics.
-// It accepts a pre-created metrics object so the server can stream live updates.
 func RunAttack(cfg *Config, stopCh chan struct{}, metrics *attack.GlobalMetrics) (*attack.GlobalMetrics, time.Duration, error) {
 	if metrics == nil {
 		metrics = attack.NewGlobalMetrics()
@@ -61,7 +59,6 @@ func RunAttack(cfg *Config, stopCh chan struct{}, metrics *attack.GlobalMetrics)
 		}
 	}()
 
-	// Resolve method descriptor once — reused by all workers.
 	methodDesc, err := ResolveMethod(cfg, conns[0])
 	if err != nil {
 		return nil, 0, fmt.Errorf("resolve method: %w", err)
@@ -84,7 +81,6 @@ func RunAttack(cfg *Config, stopCh chan struct{}, metrics *attack.GlobalMetrics)
 		go grpcWorker(conn, cfg, methodDesc, md, jobs, results, &wg)
 	}
 
-	// Optional duration timer.
 	var stopOnce sync.Once
 	if cfg.Duration > 0 {
 		go func() {
@@ -96,7 +92,6 @@ func RunAttack(cfg *Config, stopCh chan struct{}, metrics *attack.GlobalMetrics)
 		}()
 	}
 
-	// Rate-limited dispatcher.
 	rl := ratelimit.New(cfg.RPS)
 	go func() {
 		for {
@@ -110,7 +105,6 @@ func RunAttack(cfg *Config, stopCh chan struct{}, metrics *attack.GlobalMetrics)
 		}
 	}()
 
-	// Results collector.
 	var collectorWg sync.WaitGroup
 	collectorWg.Add(1)
 	go func() {
@@ -143,7 +137,6 @@ func RunAttack(cfg *Config, stopCh chan struct{}, metrics *attack.GlobalMetrics)
 	return metrics, elapsed, nil
 }
 
-// grpcWorker executes unary gRPC calls for each job token.
 func grpcWorker(
 	conn *grpc.ClientConn,
 	cfg *Config,
@@ -160,7 +153,6 @@ func grpcWorker(
 		data = "{}"
 	}
 
-	// Full gRPC method path: /pkg.ServiceName/MethodName
 	fullMethod := "/" + string(methodDesc.Parent().FullName()) + "/" + string(methodDesc.Name())
 
 	for range jobs {

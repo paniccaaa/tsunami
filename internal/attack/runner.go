@@ -1,6 +1,3 @@
-/*
-Copyright © 2025 Semen Adamenko <semaadamenko1@gmail.com>
-*/
 package attack
 
 import (
@@ -17,16 +14,10 @@ import (
 	"go.uber.org/ratelimit"
 )
 
-// RunAttack executes the load test and returns metrics.
-// stopCh: channel to signal test stop (close to stop)
-// Returns: metrics, elapsed time, error
 func RunAttack(cfg *AttackConfig, stopCh chan struct{}) (*GlobalMetrics, time.Duration, error) {
 	return RunAttackWithMetrics(cfg, stopCh, nil)
 }
 
-// RunAttackWithMetrics executes the load test with an optional pre-created metrics object.
-// If metrics is nil, a new one is created.
-// This allows callers to monitor metrics in real-time during the attack.
 func RunAttackWithMetrics(cfg *AttackConfig, stopCh chan struct{}, metrics *GlobalMetrics) (*GlobalMetrics, time.Duration, error) {
 	client := createHTTPClient(cfg)
 	if metrics == nil {
@@ -35,7 +26,6 @@ func RunAttackWithMetrics(cfg *AttackConfig, stopCh chan struct{}, metrics *Glob
 
 	startTime := time.Now()
 
-	// Set test configuration for progress tracking
 	metrics.SetTestConfig(cfg.RPS, cfg.Duration, startTime)
 
 	jobsBufferSize := max(cfg.Workers*2, 100)
@@ -102,7 +92,6 @@ func RunAttackWithMetrics(cfg *AttackConfig, stopCh chan struct{}, metrics *Glob
 				metrics.Successes++
 			} else {
 				metrics.Failures++
-				// Track error type
 				if res.ErrorType != "" {
 					metrics.AddError(res.ErrorType)
 				}
@@ -110,7 +99,6 @@ func RunAttackWithMetrics(cfg *AttackConfig, stopCh chan struct{}, metrics *Glob
 			metrics.AddLatency(res.Latency)
 			metrics.StatusCodes[res.StatusCode]++
 
-			// Track bytes
 			metrics.AddBytes(res.BytesSent, res.BytesReceived)
 
 			metrics.Unlock()
@@ -188,7 +176,6 @@ func worker(
 			continue
 		}
 
-		// Read and discard response body to get size; latency includes full transfer
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
 
@@ -203,7 +190,6 @@ func worker(
 	}
 }
 
-// classifyError determines the type of error that occurred
 func classifyError(err error) ErrorType {
 	if err == nil {
 		return ""
@@ -211,24 +197,20 @@ func classifyError(err error) ErrorType {
 
 	errStr := err.Error()
 
-	// Check for timeout
 	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 		return ErrorTypeTimeout
 	}
 
-	// Check for connection refused
 	if strings.Contains(errStr, "connection refused") {
 		return ErrorTypeConnectionRefused
 	}
 
-	// Check for DNS errors
 	if strings.Contains(errStr, "no such host") ||
 		strings.Contains(errStr, "lookup") ||
 		strings.Contains(errStr, "dns") {
 		return ErrorTypeDNS
 	}
 
-	// Check for TLS errors
 	if _, ok := err.(*tls.CertificateVerificationError); ok {
 		return ErrorTypeTLS
 	}

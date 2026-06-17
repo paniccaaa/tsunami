@@ -7,11 +7,8 @@ import (
 	"time"
 )
 
-// RateRegex matches rate strings in the format N/Vunit (e.g. 100/1s, 50/1m).
 var RateRegex = regexp.MustCompile(`^(\d+)/(\d+)(ms|s|m|h)$`)
 
-// ParseRateToRPS converts a rate string (e.g. "100/1s") to requests per second.
-// Sub-1-RPS values are floored to 1.
 func ParseRateToRPS(rate string) (int, error) {
 	matches := RateRegex.FindStringSubmatch(rate)
 	if len(matches) != 4 {

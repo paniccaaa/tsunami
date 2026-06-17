@@ -1,6 +1,3 @@
-/*
-Copyright © 2025 Semen Adamenko <semaadamenko1@gmail.com>
-*/
 package server
 
 import (
@@ -17,25 +14,19 @@ import (
 	"github.com/paniccaaa/tsunami/internal/grpcattack"
 )
 
-// StartRequest represents the request body for starting an attack.
-// Set Protocol to "grpc" and fill GRPC* fields for gRPC tests;
-// leave Protocol empty or "http" for HTTP tests.
 type StartRequest struct {
-	// Shared
-	Protocol    string        `json:"protocol"`     // "http" (default) | "grpc"
+	Protocol    string        `json:"protocol"`
 	Rate        string        `json:"rate"`
 	Duration    string        `json:"duration"`
 	Timeout     string        `json:"timeout"`
 	Workers     uint          `json:"workers"`
 	Connections uint          `json:"connections"`
 
-	// HTTP-only
 	URL         string        `json:"url"`
 	Method      string        `json:"method"`
 	Body        string        `json:"body"`
 	Headers     []string      `json:"headers"`
 
-	// gRPC-only
 	GRPCTarget   string   `json:"grpc_target"`
 	GRPCService  string   `json:"grpc_service"`
 	GRPCMethod   string   `json:"grpc_method"`
@@ -46,21 +37,18 @@ type StartRequest struct {
 	CACert       string   `json:"ca_cert"`
 }
 
-// StartResponse represents the response for starting an attack
 type StartResponse struct {
 	ID        string `json:"id"`
 	Status    string `json:"status"`
 	StartedAt string `json:"started_at"`
 }
 
-// StopResponse represents the response for stopping an attack
 type StopResponse struct {
 	ID        string `json:"id"`
 	Status    string `json:"status"`
 	StoppedAt string `json:"stopped_at"`
 }
 
-// StatusResponse represents the response for getting status
 type StatusResponse struct {
 	ID          string          `json:"id"`
 	Status      string          `json:"status"`
@@ -69,7 +57,6 @@ type StatusResponse struct {
 	Metrics     *MetricsPayload `json:"metrics,omitempty"`
 }
 
-// ErrorBreakdownPayload represents error type breakdown
 type ErrorBreakdownPayload struct {
 	Timeout          uint64 `json:"timeout"`
 	ConnectionRefused uint64 `json:"connection_refused"`
@@ -78,13 +65,11 @@ type ErrorBreakdownPayload struct {
 	Other            uint64 `json:"other"`
 }
 
-// LatencyHistoryPoint represents a latency sample at a point in time
 type LatencyHistoryPoint struct {
-	Time    float64 `json:"time"`    // Seconds since test start
-	Latency float64 `json:"latency"` // Latency in ms
+	Time    float64 `json:"time"`
+	Latency float64 `json:"latency"`
 }
 
-// MetricsPayload represents real-time metrics
 type MetricsPayload struct {
 	TotalRequests      uint64          `json:"total_requests"`
 	Successes          uint64          `json:"successes"`
@@ -101,11 +86,10 @@ type MetricsPayload struct {
 	BytesReceived      uint64          `json:"bytes_received"`
 	ElapsedTime        string          `json:"elapsed_time"`
 	Duration           string          `json:"duration"`
-	Progress           float64         `json:"progress"` // 0-100, -1 for infinite
+	Progress           float64         `json:"progress"`
 	LatencyHistory     []LatencyHistoryPoint `json:"latency_history,omitempty"`
 }
 
-// LatencyPayload represents latency percentiles
 type LatencyPayload struct {
 	P50 string `json:"p50"`
 	P90 string `json:"p90"`
@@ -113,7 +97,6 @@ type LatencyPayload struct {
 	P99 string `json:"p99"`
 }
 
-// ResultsResponse represents the final results
 type ResultsResponse struct {
 	ID                 string                 `json:"id"`
 	Status             string                 `json:"status"`
@@ -125,7 +108,6 @@ type ResultsResponse struct {
 	Timestamp          string                 `json:"timestamp"`
 }
 
-// ConfigPayload represents the test configuration
 type ConfigPayload struct {
 	URL         string   `json:"url"`
 	Method      string   `json:"method"`
@@ -137,7 +119,6 @@ type ConfigPayload struct {
 	Connections uint     `json:"connections"`
 }
 
-// SummaryPayload represents the test summary
 type SummaryPayload struct {
 	TotalRequests      uint64  `json:"total_requests"`
 	SuccessfulRequests uint64  `json:"successful_requests"`
@@ -152,25 +133,21 @@ type SummaryPayload struct {
 	BytesReceived      uint64  `json:"bytes_received"`
 }
 
-// ErrorResponse represents an error response
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message"`
 }
 
-// UploadProtoResponse is returned by POST /api/proto/upload
 type UploadProtoResponse struct {
 	Path string `json:"path"`
 	Name string `json:"name"`
 }
 
-// Handlers holds the HTTP handlers and dependencies
 type Handlers struct {
 	sessionManager *SessionManager
 	wsHub          *Hub
 }
 
-// NewHandlers creates a new Handlers instance
 func NewHandlers(sm *SessionManager, hub *Hub) *Handlers {
 	return &Handlers{
 		sessionManager: sm,
@@ -178,14 +155,10 @@ func NewHandlers(sm *SessionManager, hub *Hub) *Handlers {
 	}
 }
 
-// CORSMiddleware adds CORS headers to responses.
-// In development, allows requests from localhost:3000 (Vite dev server).
-// In production, uses same-origin so no CORS headers are needed.
 func CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 
-		// Allow localhost origins for development
 		if origin == "http://localhost:3000" || origin == "http://localhost:8080" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -201,19 +174,16 @@ func CORSMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// writeJSON writes a JSON response
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
 }
 
-// writeError writes an error response
 func writeError(w http.ResponseWriter, status int, err, message string) {
 	writeJSON(w, status, ErrorResponse{Error: err, Message: message})
 }
 
-// HandleStartAttack handles POST /api/attack/start
 func (h *Handlers) HandleStartAttack(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Only POST is allowed")
@@ -226,13 +196,11 @@ func (h *Handlers) HandleStartAttack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate request
 	if err := validateStartRequest(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 
-	// Parse duration
 	var duration time.Duration
 	if req.Duration != "" {
 		var err error
@@ -243,7 +211,6 @@ func (h *Handlers) HandleStartAttack(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Parse timeout
 	timeout := 10 * time.Second
 	if req.Timeout != "" {
 		var err error
@@ -254,7 +221,6 @@ func (h *Handlers) HandleStartAttack(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Parse rate to RPS
 	rps, err := attack.ParseRateToRPS(req.Rate)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_rate", err.Error())
@@ -268,7 +234,6 @@ func (h *Handlers) HandleStartAttack(w http.ResponseWriter, r *http.Request) {
 	sessionID := fmt.Sprintf("test-%d", time.Now().UnixNano())
 
 	if req.Protocol == "grpc" {
-		// --- gRPC path ---
 		if req.GRPCTarget == "" || req.GRPCService == "" || req.GRPCMethod == "" {
 			writeError(w, http.StatusBadRequest, "validation_error",
 				"grpc_target, grpc_service and grpc_method are required for gRPC tests")
@@ -308,7 +273,6 @@ func (h *Handlers) HandleStartAttack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- HTTP path (default) ---
 	if req.Method == "" {
 		req.Method = "GET"
 	}
@@ -342,7 +306,6 @@ func (h *Handlers) HandleStartAttack(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// runAttack runs the attack in a goroutine
 func (h *Handlers) runAttack(session *TestSession) {
 	metrics, elapsed, err := attack.RunAttackWithMetrics(session.Config, session.StopCh, session.GetMetrics())
 
@@ -364,7 +327,6 @@ func (h *Handlers) runAttack(session *TestSession) {
 	})
 }
 
-// runGRPCAttack runs a gRPC attack in a goroutine.
 func (h *Handlers) runGRPCAttack(session *TestSession) {
 	metrics, elapsed, err := grpcattack.RunAttack(session.GRPCConfig, session.StopCh, session.GetMetrics())
 
@@ -386,7 +348,6 @@ func (h *Handlers) runGRPCAttack(session *TestSession) {
 	})
 }
 
-// streamMetrics streams metrics via WebSocket every 50ms for smooth UI updates
 func (h *Handlers) streamMetrics(session *TestSession) {
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
@@ -408,7 +369,6 @@ func (h *Handlers) streamMetrics(session *TestSession) {
 	}
 }
 
-// buildMetricsPayload creates a metrics payload from the session
 func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 	metrics := session.GetMetrics()
 	if metrics == nil {
@@ -437,7 +397,6 @@ func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 		avgLatency = avg.Round(time.Millisecond).String()
 	}
 
-	// Min/Max latency
 	var minLatency, maxLatency string
 	if metrics.MinLatency < time.Duration(1<<63-1) {
 		minLatency = metrics.MinLatency.Round(time.Millisecond).String()
@@ -446,7 +405,6 @@ func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 	}
 	maxLatency = metrics.MaxLatency.Round(time.Millisecond).String()
 
-	// Progress calculation — read Duration/RPS from whichever config is set
 	var duration time.Duration
 	var targetRPS int
 	if session.Config != nil {
@@ -457,7 +415,7 @@ func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 		targetRPS = session.GRPCConfig.RPS
 	}
 
-	var progress float64 = -1 // -1 means infinite
+	var progress float64 = -1
 	if duration > 0 {
 		progress = (elapsed.Seconds() / duration.Seconds()) * 100
 		if progress > 100 {
@@ -482,12 +440,10 @@ func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 		Progress:       progress,
 	}
 
-	// Copy status codes
 	for code, count := range metrics.StatusCodes {
 		payload.StatusCodes[code] = count
 	}
 
-	// Error breakdown
 	if metrics.Failures > 0 {
 		payload.ErrorBreakdown = &ErrorBreakdownPayload{
 			Timeout:          metrics.ErrorTypes[attack.ErrorTypeTimeout],
@@ -498,7 +454,6 @@ func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 		}
 	}
 
-	// Calculate percentiles if we have data
 	if len(metrics.Latencies) > 0 {
 		p50, p90, p95, p99 := attack.CalculateAllPercentiles(metrics.Latencies)
 		payload.LatencyPercentiles = &LatencyPayload{
@@ -509,7 +464,6 @@ func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 		}
 	}
 
-	// Build latency history for chart
 	if len(metrics.LatencyHistory) > 0 {
 		payload.LatencyHistory = make([]LatencyHistoryPoint, 0, len(metrics.LatencyHistory))
 		for _, point := range metrics.LatencyHistory {
@@ -523,7 +477,6 @@ func (h *Handlers) buildMetricsPayload(session *TestSession) *MetricsPayload {
 	return payload
 }
 
-// HandleStopAttack handles POST /api/attack/stop
 func (h *Handlers) HandleStopAttack(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Only POST is allowed")
@@ -555,7 +508,6 @@ func (h *Handlers) HandleStopAttack(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleStatus handles GET /api/attack/status
 func (h *Handlers) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Only GET is allowed")
@@ -587,7 +539,6 @@ func (h *Handlers) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
-// HandleResults handles GET /api/attack/results
 func (h *Handlers) HandleResults(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Only GET is allowed")
@@ -616,7 +567,6 @@ func (h *Handlers) HandleResults(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
-// HandleDownload handles GET /api/attack/results/download
 func (h *Handlers) HandleDownload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Only GET is allowed")
@@ -644,7 +594,6 @@ func (h *Handlers) HandleDownload(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// buildResultsResponse builds the results response
 func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 	metrics := session.GetMetrics()
 	if metrics == nil {
@@ -666,7 +615,6 @@ func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 		avgLatency = avg.Round(time.Millisecond).String()
 	}
 
-	// Min/Max latency
 	var minLatency, maxLatency string
 	if metrics.MinLatency < time.Duration(1<<63-1) {
 		minLatency = metrics.MinLatency.Round(time.Millisecond).String()
@@ -724,12 +672,10 @@ func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 		Timestamp:   session.EndTime.Format(time.RFC3339),
 	}
 
-	// Copy status codes
 	for code, count := range metrics.StatusCodes {
 		response.StatusCodes[code] = count
 	}
 
-	// Error breakdown
 	if metrics.Failures > 0 {
 		response.ErrorBreakdown = &ErrorBreakdownPayload{
 			Timeout:          metrics.ErrorTypes[attack.ErrorTypeTimeout],
@@ -740,7 +686,6 @@ func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 		}
 	}
 
-	// Calculate percentiles
 	if len(metrics.Latencies) > 0 {
 		p50, p90, p95, p99 := attack.CalculateAllPercentiles(metrics.Latencies)
 		response.LatencyPercentiles = &LatencyPayload{
@@ -754,9 +699,6 @@ func (h *Handlers) buildResultsResponse(session *TestSession) *ResultsResponse {
 	return response
 }
 
-// HandleProtoUpload handles POST /api/proto/upload.
-// It accepts a multipart form with a single "file" field containing a .proto file,
-// writes it to a temp file, and returns the path for use in subsequent attack configs.
 func (h *Handlers) HandleProtoUpload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Only POST is allowed")
@@ -804,8 +746,6 @@ func (h *Handlers) HandleProtoUpload(w http.ResponseWriter, r *http.Request) {
 		Name: header.Filename,
 	})
 }
-
-// Validation helpers
 
 func validateStartRequest(req *StartRequest) error {
 	if req.Protocol != "grpc" {

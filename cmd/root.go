@@ -1,6 +1,3 @@
-/*
-Copyright © 2025 Semen Adamenko <semaadamenko1@gmail.com>
-*/
 package cmd
 
 import (
@@ -15,7 +12,6 @@ var (
 	Version string
 )
 
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "tsunami",
 	Short: "HTTP load testing tool",
@@ -40,8 +36,6 @@ See 'tsunami attack --help' for detailed usage information.`,
 	},
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
@@ -50,13 +44,6 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// Global persistent flags
 	rootCmd.PersistentFlags().Int("cpus", runtime.NumCPU(), "Number of CPUs to use")
-
-	// Local root flags
 	rootCmd.Flags().BoolP("version", "v", false, "Print version and exit")
 }

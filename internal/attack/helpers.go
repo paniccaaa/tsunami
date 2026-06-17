@@ -1,6 +1,3 @@
-/*
-Copyright © 2025 Semen Adamenko <semaadamenko1@gmail.com>
-*/
 package attack
 
 import (
@@ -9,7 +6,6 @@ import (
 	"time"
 )
 
-// CalculatePercentile calculates the percentile from latencies slice.
 func CalculatePercentile(latencies []time.Duration, percentile int) time.Duration {
 	if len(latencies) == 0 {
 		return 0
@@ -22,7 +18,6 @@ func CalculatePercentile(latencies []time.Duration, percentile int) time.Duratio
 	return sorted[percentileIndex(sorted, percentile)]
 }
 
-// CalculateAllPercentiles computes P50, P90, P95, P99 with a single sort.
 func CalculateAllPercentiles(latencies []time.Duration) (p50, p90, p95, p99 time.Duration) {
 	if len(latencies) == 0 {
 		return

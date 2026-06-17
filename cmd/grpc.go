@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// gRPC status code names for human-readable output.
 var grpcStatusNames = map[int]string{
 	0: "OK", 1: "CANCELLED", 2: "UNKNOWN", 3: "INVALID_ARGUMENT",
 	4: "DEADLINE_EXCEEDED", 5: "NOT_FOUND", 6: "ALREADY_EXISTS",
