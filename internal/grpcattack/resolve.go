@@ -14,9 +14,6 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-// ResolveMethod returns the MethodDescriptor for the configured service/method.
-// It loads from a .proto file when cfg.ProtoFile is set; otherwise it queries
-// the server's reflection service using the provided connection.
 func ResolveMethod(cfg *Config, conn *grpc.ClientConn) (protoreflect.MethodDescriptor, error) {
 	if cfg.ProtoFile != "" {
 		return resolveFromProtoFile(cfg.ProtoFile, cfg.Service, cfg.Method)
@@ -24,7 +21,6 @@ func ResolveMethod(cfg *Config, conn *grpc.ClientConn) (protoreflect.MethodDescr
 	return resolveFromReflection(conn, cfg.Service, cfg.Method)
 }
 
-// resolveFromProtoFile compiles the .proto source file and finds the method.
 func resolveFromProtoFile(protoFile, serviceName, methodName string) (protoreflect.MethodDescriptor, error) {
 	compiler := protocompile.Compiler{
 		Resolver: protocompile.WithStandardImports(&protocompile.SourceResolver{
@@ -56,8 +52,6 @@ func resolveFromProtoFile(protoFile, serviceName, methodName string) (protorefle
 	return nil, fmt.Errorf("method %q not found in service %q in %q", methodName, serviceName, protoFile)
 }
 
-// resolveFromReflection queries the server's gRPC reflection service.
-// It uses the v1alpha reflection protocol directly — no jhump wrapper needed.
 func resolveFromReflection(conn *grpc.ClientConn, serviceName, methodName string) (protoreflect.MethodDescriptor, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -90,9 +84,6 @@ func resolveFromReflection(conn *grpc.ClientConn, serviceName, methodName string
 		return nil, fmt.Errorf("unexpected reflection response type")
 	}
 
-	// Collect all returned FileDescriptorProtos into a FileDescriptorSet.
-	// protodesc.NewFiles resolves transitive deps and falls back to
-	// protoregistry.GlobalFiles for well-known types (timestamp, empty, etc.).
 	fdset := &descriptorpb.FileDescriptorSet{}
 	for _, raw := range fdr.GetFileDescriptorProto() {
 		fdp := &descriptorpb.FileDescriptorProto{}
@@ -110,7 +101,6 @@ func resolveFromReflection(conn *grpc.ClientConn, serviceName, methodName string
 	return findMethod(registry, serviceName, methodName)
 }
 
-// findMethod searches a Files registry for a specific service method.
 func findMethod(registry interface {
 	RangeFiles(func(protoreflect.FileDescriptor) bool)
 }, serviceName, methodName string) (protoreflect.MethodDescriptor, error) {

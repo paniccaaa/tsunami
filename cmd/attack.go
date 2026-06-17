@@ -1,6 +1,3 @@
-/*
-Copyright © 2025 Semen Adamenko <semaadamenko1@gmail.com>
-*/
 package cmd
 
 import (
@@ -36,10 +33,8 @@ const (
 
 var defaultHeaders = []string{}
 
-// Spinner frames for live progress
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
-// formatBytes formats bytes into a human-readable string
 func formatBytes(bytes uint64) string {
 	const (
 		KB = 1024
@@ -59,7 +54,6 @@ func formatBytes(bytes uint64) string {
 	}
 }
 
-// formatDuration formats duration in a compact way
 func formatDuration(d time.Duration) string {
 	if d < time.Second {
 		return fmt.Sprintf("%dms", d.Milliseconds())
@@ -70,8 +64,6 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%.1fm", d.Minutes())
 }
 
-// liveProgress displays real-time metrics during the attack.
-// It returns a channel that is closed when the goroutine exits.
 func liveProgress(metrics *attack.GlobalMetrics, cfg *attack.AttackConfig, startTime time.Time, stopCh chan struct{}) <-chan struct{} {
 	done := make(chan struct{})
 	go func() {
@@ -87,7 +79,6 @@ func liveProgress(metrics *attack.GlobalMetrics, cfg *attack.AttackConfig, start
 		for {
 			select {
 			case <-stopCh:
-				// Clear the line and return
 				fmt.Print("\r\033[K")
 				return
 			case <-ticker.C:
@@ -95,7 +86,6 @@ func liveProgress(metrics *attack.GlobalMetrics, cfg *attack.AttackConfig, start
 
 			elapsed := time.Since(startTime)
 
-			// Calculate current RPS (based on recent requests)
 			now := time.Now()
 			timeDelta := now.Sub(lastTime).Seconds()
 			requestDelta := metrics.TotalRequests - lastRequests
@@ -106,19 +96,16 @@ func liveProgress(metrics *attack.GlobalMetrics, cfg *attack.AttackConfig, start
 			lastRequests = metrics.TotalRequests
 			lastTime = now
 
-			// Calculate average RPS
 			var avgRPS float64
 			if elapsed.Seconds() > 0 {
 				avgRPS = float64(metrics.TotalRequests) / elapsed.Seconds()
 			}
 
-			// Calculate average latency
 			var avgLatency time.Duration
 			if metrics.TotalRequests > 0 {
 				avgLatency = metrics.TotalLatency / time.Duration(metrics.TotalRequests)
 			}
 
-			// Progress bar for duration
 			var progressBar string
 			if cfg.Duration > 0 {
 				progress := elapsed.Seconds() / cfg.Duration.Seconds()
@@ -135,24 +122,20 @@ func liveProgress(metrics *attack.GlobalMetrics, cfg *attack.AttackConfig, start
 				progressBar = "[∞ infinite]"
 			}
 
-			// Build the status line
 			spinner := spinnerFrames[frameIdx%len(spinnerFrames)]
 			frameIdx++
 
-			// Color codes
 			green := "\033[32m"
 			red := "\033[31m"
 			yellow := "\033[33m"
 			cyan := "\033[36m"
 			reset := "\033[0m"
 
-			// Error indicator
 			errorStr := fmt.Sprintf("%s%d%s", green, metrics.Failures, reset)
 			if metrics.Failures > 0 {
 				errorStr = fmt.Sprintf("%s%d%s", red, metrics.Failures, reset)
 			}
 
-			// RPS color (green if close to target, yellow/red if far)
 			rpsColor := green
 			rpsGap := (avgRPS - float64(cfg.RPS)) / float64(cfg.RPS) * 100
 			if rpsGap < -10 {
@@ -171,13 +154,11 @@ func liveProgress(metrics *attack.GlobalMetrics, cfg *attack.AttackConfig, start
 				errorStr,
 			)
 
-			// Add instantaneous RPS
 			statusLine += fmt.Sprintf(" | Now: %.0f/s", currentRPS)
 
 			metrics.Unlock()
 
-			// Print status line (overwrite previous)
-			fmt.Print("\033[K") // Clear to end of line
+			fmt.Print("\033[K")
 			fmt.Print(statusLine)
 		}
 	}
@@ -228,11 +209,9 @@ Examples:
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
-		// Create metrics before attack so we can display live progress
 		metrics := attack.NewGlobalMetrics()
 		startTime := time.Now()
 
-		// Start live progress display
 		progressDone := liveProgress(metrics, cfg, startTime, progressStopCh)
 
 		go func() {
@@ -244,7 +223,6 @@ Examples:
 
 		metrics, elapsedTime, err := attack.RunAttackWithMetrics(cfg, stopCh, metrics)
 
-		// Stop progress display and wait for the goroutine to exit
 		stopProgress()
 		<-progressDone
 
@@ -284,7 +262,6 @@ Examples:
 				avgLatency := metrics.TotalLatency / time.Duration(metrics.TotalRequests)
 				fmt.Printf("Average Latency: %v\n", avgLatency.Round(time.Millisecond))
 
-				// Min/Max latency
 				if metrics.MinLatency < time.Duration(1<<63-1) {
 					fmt.Printf("Min Latency: %v\n", metrics.MinLatency.Round(time.Millisecond))
 				}
@@ -316,7 +293,6 @@ Examples:
 					fmt.Printf("  [%d]: %d (%.2f%%)\n", code, count, float64(count)/float64(metrics.TotalRequests)*100)
 				}
 
-				// Error breakdown if there are failures
 				if metrics.Failures > 0 {
 					fmt.Printf("\n=== Error Breakdown ===\n")
 					if count := metrics.ErrorTypes[attack.ErrorTypeTimeout]; count > 0 {
@@ -342,7 +318,6 @@ Examples:
 	},
 }
 
-// GetAttackConfig builds an AttackConfig from command flags
 func GetAttackConfig(cmd *cobra.Command) (*attack.AttackConfig, error) {
 	url, _ := cmd.Flags().GetString("url")
 	method, _ := cmd.Flags().GetString("method")

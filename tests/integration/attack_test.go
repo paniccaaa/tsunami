@@ -11,8 +11,6 @@ import (
 	"github.com/paniccaaa/tsunami/internal/attack"
 )
 
-// TestRunAttack_BasicSuccess checks that a normal attack completes without errors:
-// all requests get 200, failures are zero, and latency is recorded.
 func TestRunAttack_BasicSuccess(t *testing.T) {
 	cfg := &attack.AttackConfig{
 		URL:         testBaseURL + "/get",
@@ -55,9 +53,6 @@ func TestRunAttack_BasicSuccess(t *testing.T) {
 	}
 }
 
-// TestRunAttack_TimeoutClassification checks that a slow server produces
-// timeout errors and nothing else.
-// /delay/3 makes the server wait 3s; our timeout is 500ms so every request times out.
 func TestRunAttack_TimeoutClassification(t *testing.T) {
 	cfg := &attack.AttackConfig{
 		URL:         testBaseURL + "/delay/3",
@@ -66,7 +61,7 @@ func TestRunAttack_TimeoutClassification(t *testing.T) {
 		Duration:    2 * time.Second,
 		Workers:     5,
 		Connections: 10,
-		Timeout:     500 * time.Millisecond, // shorter than the server delay
+		Timeout:     500 * time.Millisecond,
 	}
 
 	stopCh := make(chan struct{})
@@ -84,7 +79,6 @@ func TestRunAttack_TimeoutClassification(t *testing.T) {
 	if metrics.ErrorTypes[attack.ErrorTypeTimeout] == 0 {
 		t.Errorf("expected ErrorTypeTimeout, got: %v", metrics.ErrorTypes)
 	}
-	// Make sure no other error types sneak in
 	for errType, count := range metrics.ErrorTypes {
 		if errType != attack.ErrorTypeTimeout && count > 0 {
 			t.Errorf("unexpected error type %q: %d", errType, count)
@@ -92,9 +86,6 @@ func TestRunAttack_TimeoutClassification(t *testing.T) {
 	}
 }
 
-// TestRunAttack_MetricsAccuracy checks that Successes and Failures
-// are counted correctly based on HTTP status code.
-// Rule in runner.go: status < 400 → success, status >= 400 → failure.
 func TestRunAttack_MetricsAccuracy(t *testing.T) {
 	t.Run("2xx is a success", func(t *testing.T) {
 		cfg := &attack.AttackConfig{
@@ -150,7 +141,6 @@ func TestRunAttack_MetricsAccuracy(t *testing.T) {
 		if metrics.StatusCodes[500] == 0 {
 			t.Error("expected 500 to be tracked in StatusCodes")
 		}
-		// HTTP 500 is a Failure but not a network error — ErrorTypes must stay empty
 		if len(metrics.ErrorTypes) > 0 {
 			t.Errorf("HTTP 500 should not produce ErrorType entries, got: %v", metrics.ErrorTypes)
 		}
@@ -182,8 +172,6 @@ func TestRunAttack_MetricsAccuracy(t *testing.T) {
 	})
 }
 
-// TestHighThroughput verifies the engine sustains ≥ 1 000 RPS with P99 ≤ 50 ms.
-// Uses a minimal in-process HTTP server to measure engine throughput without Docker overhead.
 func TestHighThroughput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

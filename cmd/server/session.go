@@ -1,6 +1,3 @@
-/*
-Copyright © 2025 Semen Adamenko <semaadamenko1@gmail.com>
-*/
 package server
 
 import (
@@ -11,7 +8,6 @@ import (
 	"github.com/paniccaaa/tsunami/internal/grpcattack"
 )
 
-// SessionStatus represents the current state of a test session
 type SessionStatus string
 
 const (
@@ -22,13 +18,12 @@ const (
 	StatusError     SessionStatus = "error"
 )
 
-// TestSession represents a single load test session
 type TestSession struct {
 	ID          string
 	Status      SessionStatus
-	Protocol    string               // "http" (default) | "grpc"
-	Config      *attack.AttackConfig // non-nil when Protocol == "http"
-	GRPCConfig  *grpcattack.Config   // non-nil when Protocol == "grpc"
+	Protocol    string
+	Config      *attack.AttackConfig
+	GRPCConfig  *grpcattack.Config
 	Metrics     *attack.GlobalMetrics
 	StartTime   time.Time
 	EndTime     time.Time
@@ -38,30 +33,25 @@ type TestSession struct {
 	mu          sync.RWMutex
 }
 
-// SessionManager manages the current test session (single session at a time)
 type SessionManager struct {
 	current *TestSession
 	mu      sync.RWMutex
 }
 
-// NewSessionManager creates a new session manager
 func NewSessionManager() *SessionManager {
 	return &SessionManager{}
 }
 
-// GetCurrent returns the current session (may be nil)
 func (sm *SessionManager) GetCurrent() *TestSession {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return sm.current
 }
 
-// CreateSession creates a new HTTP test session, stopping any existing one.
 func (sm *SessionManager) CreateSession(id string, cfg *attack.AttackConfig) *TestSession {
 	return sm.createSession(id, "http", cfg, nil)
 }
 
-// CreateGRPCSession creates a new gRPC test session, stopping any existing one.
 func (sm *SessionManager) CreateGRPCSession(id string, cfg *grpcattack.Config) *TestSession {
 	return sm.createSession(id, "grpc", nil, cfg)
 }
@@ -88,7 +78,6 @@ func (sm *SessionManager) createSession(id, protocol string, httpCfg *attack.Att
 	return session
 }
 
-// Start marks the session as running
 func (s *TestSession) Start() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -96,7 +85,6 @@ func (s *TestSession) Start() {
 	s.StartTime = time.Now()
 }
 
-// Stop signals the session to stop
 func (s *TestSession) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -104,7 +92,6 @@ func (s *TestSession) Stop() {
 	if s.Status == StatusRunning {
 		select {
 		case <-s.StopCh:
-			// Already closed
 		default:
 			close(s.StopCh)
 		}
@@ -113,7 +100,6 @@ func (s *TestSession) Stop() {
 	}
 }
 
-// Complete marks the session as completed with results
 func (s *TestSession) Complete(metrics *attack.GlobalMetrics, elapsed time.Duration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -123,7 +109,6 @@ func (s *TestSession) Complete(metrics *attack.GlobalMetrics, elapsed time.Durat
 	s.EndTime = time.Now()
 }
 
-// SetError marks the session as failed with an error
 func (s *TestSession) SetError(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -132,28 +117,24 @@ func (s *TestSession) SetError(err error) {
 	s.EndTime = time.Now()
 }
 
-// SetMetrics updates the session metrics (used during streaming)
 func (s *TestSession) SetMetrics(metrics *attack.GlobalMetrics) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Metrics = metrics
 }
 
-// GetStatus returns the current session status
 func (s *TestSession) GetStatus() SessionStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.Status
 }
 
-// GetMetrics returns the current metrics
 func (s *TestSession) GetMetrics() *attack.GlobalMetrics {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.Metrics
 }
 
-// IsRunning returns true if the session is currently running
 func (s *TestSession) IsRunning() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

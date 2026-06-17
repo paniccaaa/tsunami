@@ -13,8 +13,6 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-// testBaseURL is shared across all tests in this package.
-// The httpbin container starts once in TestMain and stops after all tests finish.
 var testBaseURL string
 
 func TestMain(m *testing.M) {

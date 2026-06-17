@@ -1,6 +1,3 @@
-/*
-Copyright © 2025 Semen Adamenko <semaadamenko1@gmail.com>
-*/
 package attack
 
 import (
@@ -9,7 +6,6 @@ import (
 	"time"
 )
 
-// Summary represents the test summary
 type Summary struct {
 	TotalRequests      uint64  `json:"total_requests"`
 	SuccessfulRequests uint64  `json:"successful_requests"`
@@ -24,7 +20,6 @@ type Summary struct {
 	BytesReceived      uint64  `json:"bytes_received"`
 }
 
-// LatencyPercentiles represents latency percentiles
 type LatencyPercentiles struct {
 	P50 string `json:"p50"`
 	P90 string `json:"p90"`
@@ -32,8 +27,6 @@ type LatencyPercentiles struct {
 	P99 string `json:"p99"`
 }
 
-// AttackConfigJSON is a JSON-serializable version of AttackConfig
-// that converts time.Duration fields to strings
 type AttackConfigJSON struct {
 	URL         string   `json:"url"`
 	Method      string   `json:"method"`
@@ -46,7 +39,6 @@ type AttackConfigJSON struct {
 	RPS         int      `json:"rps"`
 }
 
-// ToJSON converts AttackConfig to AttackConfigJSON
 func (cfg *AttackConfig) ToJSON() AttackConfigJSON {
 	result := AttackConfigJSON{
 		URL:         cfg.URL,
@@ -66,7 +58,6 @@ func (cfg *AttackConfig) ToJSON() AttackConfigJSON {
 	return result
 }
 
-// ErrorBreakdown represents error type breakdown
 type ErrorBreakdown struct {
 	Timeout          uint64 `json:"timeout"`
 	ConnectionRefused uint64 `json:"connection_refused"`
@@ -75,7 +66,6 @@ type ErrorBreakdown struct {
 	Other            uint64 `json:"other"`
 }
 
-// MetricsReport represents the full metrics report
 type MetricsReport struct {
 	Config             AttackConfigJSON   `json:"config"`
 	Summary            Summary            `json:"summary"`
@@ -85,14 +75,12 @@ type MetricsReport struct {
 	Timestamp          string             `json:"timestamp"`
 }
 
-// ToJSON converts GlobalMetrics to JSON
 func (m *GlobalMetrics) ToJSON(cfg *AttackConfig, elapsedTime time.Duration, reqPerSec float64) ([]byte, error) {
 	m.Lock()
 	defer m.Unlock()
 
 	report := MetricsReport{}
 
-	// Convert AttackConfig to JSON-serializable format
 	report.Config = cfg.ToJSON()
 
 	report.Summary.TotalRequests = m.TotalRequests
@@ -105,7 +93,6 @@ func (m *GlobalMetrics) ToJSON(cfg *AttackConfig, elapsedTime time.Duration, req
 		report.Summary.AverageLatency = avgLatency.Round(time.Millisecond).String()
 	}
 
-	// Min/Max latency
 	if m.MinLatency < time.Duration(1<<63-1) {
 		report.Summary.MinLatency = m.MinLatency.Round(time.Millisecond).String()
 	} else {
@@ -116,7 +103,6 @@ func (m *GlobalMetrics) ToJSON(cfg *AttackConfig, elapsedTime time.Duration, req
 	report.Summary.ThroughputRPS = reqPerSec
 	report.Summary.TargetRPS = cfg.RPS
 
-	// Bytes transferred
 	report.Summary.BytesSent = m.BytesSent
 	report.Summary.BytesReceived = m.BytesReceived
 
@@ -131,7 +117,6 @@ func (m *GlobalMetrics) ToJSON(cfg *AttackConfig, elapsedTime time.Duration, req
 	report.StatusCodes = make(map[int]uint64)
 	maps.Copy(report.StatusCodes, m.StatusCodes)
 
-	// Error breakdown
 	report.ErrorBreakdown = ErrorBreakdown{
 		Timeout:          m.ErrorTypes[ErrorTypeTimeout],
 		ConnectionRefused: m.ErrorTypes[ErrorTypeConnectionRefused],
